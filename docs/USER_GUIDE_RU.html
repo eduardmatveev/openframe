@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenFrame 0.4.4 — руководство пользователя</title>
+<style>
+:root { color-scheme: light; --ink: #202830; --muted: #425461; --line: #d4dfe3; --accent: #006265; --tint: #eaf4f3; }
+* { box-sizing: border-box; }
+html { scroll-padding-top: 1.4rem; }
+body { margin: 0; color: var(--ink); background: #f3f6f6; font: 17px/1.58 "Segoe UI", Arial, sans-serif; }
+main { max-width: 59rem; margin: 0 auto; padding: clamp(1.15rem,5vw,3.8rem); background: white; border-top: 5px solid var(--accent); }
+h1,h2,h3 { line-height: 1.22; text-wrap: balance; }
+h1 { margin: 0 0 .8rem; font-size: clamp(1.9rem,4.45vw,3rem); }
+h2 { margin: 2.35rem 0 .8rem; padding-top: 1.2rem; border-top: 1px solid var(--line); font-size: clamp(1.45rem,2.8vw,2rem); }
+h3 { margin: 1.65rem 0 .65rem; font-size: 1.22rem; }
+p,ol,ul { margin: .7rem 0 1.05rem; }
+ol,ul { padding-left: 1.6rem; }
+li { padding-left: .15rem; margin: .42rem 0; }
+li::marker { color: var(--accent); font-weight: 600; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: .16em; }
+a:hover { color: #004247; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+a[id]:empty { display: block; }
+p:has(> a[id]:only-child) { margin: 0; }
+strong { font-weight: 650; }
+code { font: .87em/1.3 Consolas, "Courier New", monospace; background: #f1f4f5; color: #213e49; padding: .08em .3em; border-radius: .22em; overflow-wrap: anywhere; }
+.table-scroll { margin: .95rem 0 1.25rem; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .94rem; line-height: 1.48; }
+th,td { padding: .6rem .74rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+th { background: var(--tint); color: #184448; }
+td:first-child { width: 32%; }
+tbody tr:nth-child(even) { background: #f8fafb; }
+@media(max-width: 600px) { body { font-size: 16px; } table { font-size: .88rem; } th,td { padding: .47rem .4rem; } td:first-child { width: 34%; } }
+@media print {
+  @page { margin: 15mm; }
+  body,main { background: white; }
+  body { font: 10.5pt/1.43 "Segoe UI", Arial, sans-serif; color: black; }
+  main { max-width: none; margin: 0; padding: 0; border: 0; }
+  h1 { font-size: 23pt; } h2 { font-size: 16pt; } h3 { font-size: 12pt; }
+  h1,h2,h3 { break-after: avoid; }
+  tr { break-inside: avoid; } thead { display: table-header-group; }
+  table { font-size: 9.5pt; } .table-scroll { overflow: visible; }
+  a { color: #163e41; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1 id="openframe">OpenFrame — руководство пользователя</h1>
+<p><strong>Версия 0.4.4 для Windows.</strong> В OpenFrame можно посмотреть анимацию по кадрам, сравнить две версии шота, нарисовать правки и отправить результат коллеге. Если вы работаете в Maya, playblast можно записать сразу в плеер.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Что вы хотите сделать</th>
+<th>Куда перейти</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Начать работу</td>
+<td><a href="#install">Установить OpenFrame и открыть первый ролик</a></td>
+</tr>
+<tr>
+<td>Отправить анимацию из Maya</td>
+<td><a href="#maya">Записать playblast</a> · <a href="#sync">Связать курсоры времени</a></td>
+</tr>
+<tr>
+<td>Увидеть разницу между версиями</td>
+<td><a href="#compare">Сравнить A и B</a> · <a href="#picture">Проверить резкость, цвет и композицию</a></td>
+</tr>
+<tr>
+<td>Найти нужную позу или склейку</td>
+<td><a href="#playback">Управлять воспроизведением и звуком</a></td>
+</tr>
+<tr>
+<td>Собрать несколько шотов подряд</td>
+<td><a href="#project">Работать с проектом и таймлайном</a></td>
+</tr>
+<tr>
+<td>Оставить правку</td>
+<td><a href="#draw">Нарисовать поверх кадра</a> · <a href="#notes">Добавить закладку или заметку</a></td>
+</tr>
+<tr>
+<td>Передать результат</td>
+<td><a href="#export">Сохранить кадр, видео или серию изображений</a></td>
+</tr>
+<tr>
+<td>Настроить плеер или решить проблему</td>
+<td><a href="#workspace">Рабочее место</a> · <a href="#faq">Частые вопросы</a> · <a href="#keys">Горячие клавиши</a></td>
+</tr>
+</tbody>
+</table></div>
+<p><a id="install"></a></p>
+<h2 id="openframe-1">Установить OpenFrame и открыть первый ролик</h2>
+<ol>
+<li>Распакуйте <strong>OpenFrame-windows-x64.zip</strong> целиком в постоянную папку на компьютере, например <code>D:\Tools\OpenFrame</code>. Откройте эту папку и запустите <strong>OpenFrame.exe</strong>. Для последующих запусков можно создать ярлык.</li>
+<li>Перетащите видео из Проводника в плеер или нажмите <code>Ctrl+I</code> (<strong>File → Import File(s)…</strong>). Если в проекте несколько роликов, дважды щёлкните по нужному в панели <strong>Project</strong>.</li>
+<li>Нажмите <code>Пробел</code> для старта и паузы. Клавишами <code>←</code> и <code>→</code> пролистайте кадры. Чтобы запомнить удачную позу, нажмите <code>B</code>. Чтобы написать замечание, нажмите <code>Ctrl+W</code>.</li>
+<li>Нажмите <code>Ctrl+S</code>, если хотите вернуться к этой работе позже. Проект сохраняется в файл <code>.oframe</code>. Оригинальные ролики и кадры храните вместе с ним.</li>
+</ol>
+<p><strong>Для работы с Maya</strong> перетащите файл <strong><code>maya\Install.mel</code></strong> из распакованной папки прямо в окно с 3D-сценой Maya. Появится полка <strong>OpenFrame</strong> с двумя кнопками. Бирюзовый треугольник <strong>OpenFrame</strong> запускает плеер. Янтарный ромб <strong>OF Maya</strong> открывает окно записи и синхронизации.</p>
+<p><strong>Обновление.</strong> Сохраните открытый проект, закройте плеер и распакуйте новый комплект целиком. Если пользуетесь Maya, перетащите новый <code>maya\Install.mel</code> в окно сцены ещё раз. Это обновит и кнопки полки, и путь запуска плеера. Так же поступите, если перенесли папку программы.</p>
+<p><a id="maya"></a></p>
+<h2 id="playblast-maya">Записать playblast из Maya</h2>
+<ol>
+<li>Нажмите на полке <strong>OpenFrame</strong>, затем <strong>OF Maya</strong>. В открывшемся окне оставьте <strong>Automatic</strong>, нажмите <strong>Connect</strong> и дождитесь надписи <strong>Connected</strong>. Если Maya предложит выбрать из нескольких открытых плееров, укажите нужный и нажмите <strong>Connect</strong> ещё раз.</li>
+<li>В Maya подготовьте вид камеры. Для записи фрагмента выделите его на <strong>Time Slider</strong>. Например, выделение от 5 до 10 даст кадры 5–9. Без выделения будут записаны кадры от начала до конца установленного диапазона воспроизведения, включая последний.</li>
+<li>В окне <strong>OF Maya</strong>, на вкладке <strong>Playblast</strong>, установите <strong>Open in viewer → A</strong> и нажмите <strong>Create playblast and import</strong>. После записи Maya вернётся на первый снятый кадр. Когда появится <strong>Playblast imported</strong>, результат будет в плеере.</li>
+<li>Измените анимацию. Для следующей записи выберите <strong>B</strong> и нажмите ту же кнопку. Теперь обе версии готовы к сравнению. Вариант <strong>None</strong> добавляет запись в список проекта для последующего просмотра.</li>
+</ol>
+<h3 id="section">Что можно настроить при записи</h3>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>В окне OF Maya</th>
+<th>Для чего это нужно</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Output format</strong></td>
+<td>AVI — видеоролик. WebM доступен в тех версиях Maya, которые умеют его записывать. PNG, JPG, BMP и TIF сохраняют отдельные изображения и открываются в OpenFrame как один клип.</td>
+</tr>
+<tr>
+<td><strong>Resolution</strong></td>
+<td>Ширина и высота записи. Начальное значение — <strong>1920×1080</strong>. Для собственного размера введите значения, кратные четырём.</td>
+</tr>
+<tr>
+<td><strong>Advanced → Quality / scale %</strong></td>
+<td>Качество записи и масштаб изображения. По умолчанию оба значения равны <strong>100</strong>. Для полного разрешения оставьте масштаб 100%.</td>
+</tr>
+<tr>
+<td><strong>Include audio / Audio source</strong></td>
+<td>Для ролика включите звук и выберите <strong>Time Slider</strong> или конкретный звуковой узел сцены. <strong>Refresh</strong> обновляет список. Под ним видно, какой звук выбран, приглушён ли он и какое у него смещение. Серии изображений записываются без звука.</td>
+</tr>
+<tr>
+<td><strong>Timecode from Maya start</strong></td>
+<td>Подписывает первый кадр номером из Maya. Например, если запись началась с 1001-го кадра, в плеере первый кадр тоже будет подписан 1001.</td>
+</tr>
+<tr>
+<td><strong>Advanced</strong></td>
+<td><strong>Image frame padding</strong> задаёт число цифр в именах кадров. <strong>Show ornaments</strong> включает служебные элементы вида Maya. <strong>Render offscreen</strong> включает отрисовку вне видимого окна. <strong>Reset adapter settings</strong> возвращает исходные настройки окна OpenFrame в Maya.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Где найти запись.</strong> Нажмите <strong>Open Temp Folder</strong> в окне OF Maya. Maya покажет папку захватов этого сеанса и её содержимое. Для хранения шота скопируйте нужный ролик или всю последовательность в папку проекта и укажите новое расположение через <strong>Relink Source…</strong>. <strong>Clear Temp Folder</strong> предлагает список неиспользуемых записей этого сеанса и удаляет их после вашего подтверждения.</p>
+<p><a id="sync"></a></p>
+<h2 id="maya-openframe">Связать курсоры времени Maya и OpenFrame</h2>
+<p>Откройте <strong>OF Maya → Sync → Sync direction</strong>. Для обычной записи playblast можно оставить <strong>Off</strong>. Если вы правите анимацию и хотите рядом видеть референс на том же кадре, выберите <strong>Maya → OpenFrame</strong>. Для разбора замечаний удобно направление <strong>OpenFrame → Maya</strong>. Тогда переход к кадру в плеере передвинет курсор в сцене. <strong>Bidirectional</strong> позволяет перемещаться с любой стороны.</p>
+<ul>
+<li><strong>Начать с выделенного диапазона.</strong> Задайте In/Out в плеере, включите <strong>From range start</strong>, оставьте <strong>Multiplier</strong> равным 1 и <strong>Offset</strong> равным 0. Теперь кадр 1 в Maya покажет первый кадр диапазона OpenFrame.</li>
+<li><strong>Совместить начало шота.</strong> Например, если кадру 1001 в Maya должен соответствовать самый первый кадр ролика, выключите <strong>From range start</strong>, поставьте <strong>Multiplier</strong> 1 и <strong>Offset</strong> −1001. Проверьте совпадение на первой позе.</li>
+<li><strong>Изменить скорость соответствия.</strong> При <strong>Multiplier</strong> 2 один кадр вперёд в Maya сдвигает плеер на два. Если движение уже совпадает, а изменить нужно только подпись первого кадра, введите <strong>Display offset</strong> и нажмите <strong>Apply display offset</strong>. <strong>Disable override</strong> возвращает обычную нумерацию.</li>
+<li><strong>Перенести границы.</strong> <strong>Send Maya range</strong> отправляет диапазон воспроизведения Maya в плеер. <strong>Receive OpenFrame range</strong> переносит установленный In/Out в Maya. Диапазон переносится по нажатию кнопки.</li>
+<li>На вкладке <strong>Sync</strong> можно выбрать <strong>Single A</strong>, <strong>Single B</strong>, <strong>Active</strong>, <strong>Horizontal</strong>, <strong>Vertical</strong> и поменять A и B местами. В плеере <strong>Tools → Maya Tools…</strong> показывает подключённые сеансы Maya. Если открыты две сцены в разных экземплярах Maya, выберите нужный сеанс перед изменением его настроек. <strong>Disconnect</strong> в OF Maya завершает подключение.</li>
+</ul>
+<p><a id="compare"></a></p>
+<h2 id="section-1">Сравнить две версии</h2>
+<p>На верхней панели плеера есть списки <strong>A</strong>, <strong>B</strong>, <strong>C</strong> и <strong>D</strong>. В A выберите исходную версию, в B — исправленную. В каждый список можно назначить отдельный ролик или целый таймлайн. Пункт <strong>Active timeline</strong> подставляет текущий таймлайн. Режим сравнения выбирается в <strong>Video → Layout</strong> или кнопками рядом со списками.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Что хочется увидеть</th>
+<th>Какой режим выбрать</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Только первую или только вторую версию</td>
+<td><strong>Single A</strong> всегда показывает A, <strong>Single B</strong> всегда показывает B.</td>
+</tr>
+<tr>
+<td>Одну версию на всю область просмотра с возможностью менять выбор</td>
+<td><strong>Active</strong> следует за выбранным слотом A или B. Выберите источник в верхнем списке нужного слота или щёлкните по его области в разделённом виде перед переходом в Active.</td>
+</tr>
+<tr>
+<td>Оба кадра целиком</td>
+<td><strong>Horizontal</strong> ставит A слева и B справа. <strong>Vertical</strong> ставит A сверху и B снизу.</td>
+</tr>
+<tr>
+<td>Проверить, где изменились контур или освещение</td>
+<td><strong>Wipe</strong> накладывает кадры друг на друга и показывает по разные стороны границы. Потяните линию через интересующий участок.</td>
+</tr>
+<tr>
+<td>Сравнить силуэты и положение персонажа</td>
+<td><strong>Transparency</strong> смешивает изображения. При 0% виден A, при 100% — B. Поставьте ползунок примерно посередине и потяните его. Изображение меняется во время перетаскивания, а <code>Ctrl+Z</code> при закрытых инструментах рисования отменяет весь жест.</td>
+</tr>
+<tr>
+<td>Сравнить до четырёх вариантов</td>
+<td><strong>Grid</strong> открывает также списки C и D. В верхнем ряду находятся A и B, в нижнем — C и D.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Поменять версии местами</strong> можно через <strong>Swap Timelines A/B</strong> (<code>Ctrl+Tab</code>). Раскладка при этом сохранится. Если для проверки нужен собственный звук или полный хронометраж второй версии, включите <strong>Single B</strong>. В остальных режимах основной звук и шкалу времени задаёт A.</p>
+<p><strong>Точная настройка Wipe.</strong> Потяните центральную точку линии, чтобы переместить опору, или круглую рукоятку, чтобы повернуть линию. <code>Ctrl</code> временно отключает привязку к центру и прямым углам. При включённом рисовании удерживайте <code>Alt</code> для перемещения границы. В <strong>Video → Wipe</strong> можно включить направляющие, задать угол, отцентрировать границу по одной оси или вернуть её в центр через <strong>Reset Wipe</strong>. <strong>Wipe Options…</strong> позволяет ввести положение и угол точно. <code>Esc</code> отменяет незавершённое перетаскивание.</p>
+<p><a id="picture"></a></p>
+<h2 id="section-2">Проверить резкость, цвет и композицию</h2>
+<p><strong>Если playblast выглядит мягче в плеере</strong>, у трёх настроек разные задачи.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Настройка</th>
+<th>Что она меняет</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Maya → Playblast → Resolution</strong> и <strong>scale %</strong></td>
+<td>Сколько пикселей Maya запишет в сам файл.</td>
+</tr>
+<tr>
+<td><strong>Edit → Project Settings… → Viewer output</strong></td>
+<td>В каком размере OpenFrame собирает изображение для просмотра. У нового проекта это <strong>1920×1080</strong>. При показе двух или четырёх версий каждая занимает часть этого кадра.</td>
+</tr>
+<tr>
+<td><strong>File → Export to File… → Resolution</strong></td>
+<td>Сколько пикселей получит готовый экспорт. Этот размер можно задать отдельно.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Для проверки мелких деталей выберите <strong>Single A</strong> или <strong>Single B</strong>, посмотрите размер исходника в <strong>Details → Properties</strong>, поставьте такой же <strong>Viewer output</strong> и нажмите <code>Ctrl+/</code> для сброса масштаба. <strong>Video → Size → Original Size</strong> подгонит окно под исходный размер в пределах экрана. Если свободного места меньше, разверните плеер по <code>F11</code> или увеличьте нужный участок.</p>
+<ul>
+<li><strong>Приблизить и сдвинуть.</strong> <code>Ctrl+колесо мыши</code> меняет масштаб. <code>Ctrl</code> и перетаскивание средней кнопкой двигают изображение. С добавленным <code>Shift</code> то же перетаскивание меняет масштаб. Команды <strong>Video → Pan / Zoom</strong> позволяют сдвинуть кадр в любую сторону или сбросить вид. Двойной щелчок при выключенном рисовании также возвращает исходный вид. В <strong>Video → Size</strong> есть четвертной, половинный, исходный и двойной размеры окна.</li>
+<li><strong>Проверить позу в зеркале.</strong> Выберите нужную область, затем <strong>Video → Flip Horizontal</strong> или <strong>Flip Vertical</strong>. <strong>Rotate CW / CCW</strong> поворачивает её, <strong>Reset Flip / Rotate</strong> возвращает исходную ориентацию.</li>
+<li><strong>Наложить направляющие.</strong> В <strong>Video → Overlays</strong> доступны безопасные поля <strong>Safe Area</strong>, сетка <strong>Grid</strong>, центр <strong>Center</strong>, линии <strong>Dynamic Symmetry</strong> и <strong>Phi Grid</strong>. <strong>Overlay Options…</strong> меняет цвет, толщину и прозрачность линий, число делений сетки, размер центра и поля. <strong>Toggle Last Overlay</strong> прячет и возвращает выбранную направляющую.</li>
+<li><strong>Использовать свою рамку.</strong> Включите <strong>Video → Overlays → Custom</strong>, затем в том же меню откройте <strong>Overlay Options…</strong> и добавьте линию, прямоугольник, эллипс, многоугольник или текст. Точки задаются долями ширины и высоты от 0 до 1. Фигуры можно копировать, прятать, удалять и менять их порядок. <strong>Image</strong> накладывает локальную картинку с регулируемыми положением, размером, пропорциями и прозрачностью.</li>
+<li><strong>Показать информацию о кадре.</strong> <strong>Tools → Media Info</strong> выводит номер кадра, время и FPS. <strong>Video → Picture Type (I / P / B)</strong> добавляет тип видеокадра, когда он известен. Эти надписи входят в экспорт вида. Для чистого изображения отключите их перед выдачей.</li>
+<li><strong>Посмотреть HDR-материал.</strong> Плеер показывает изображение в 8-битном sRGB. В <strong>Video → HDR / Display Color…</strong> можно включить преобразование яркости HDR для экрана. Для точной подстройки доступны яркость источника (<strong>Source peak</strong>), опорный белый (<strong>Reference white</strong>), яркость дисплея (<strong>Display peak</strong>) и переход между яркостями (<strong>Mobius transition</strong>). Для сохранения исходного цвета в файле используйте настройки <a href="#export">экспорта</a>.</li>
+</ul>
+<p><a id="playback"></a></p>
+<h2 id="section-3">Управлять воспроизведением и звуком</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Задача</th>
+<th>Действие</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Прокрутить вперёд или назад</td>
+<td><code>Пробел</code> запускает и останавливает просмотр. <code>J</code> — назад, <code>K</code> — пауза, <code>L</code> — вперёд. На панели скорости выберите, например, 0.5×, чтобы замедлить движение. Там же можно ввести своё значение от 1/16× до 16×, в том числе со знаком минус для обратного хода.</td>
+</tr>
+<tr>
+<td>Найти конкретную позу</td>
+<td>Потяните по изображению влево или вправо при закрытых инструментах рисования, щёлкните по шкале времени или введите номер в поле текущего кадра. Колесо мыши и <code>←</code> / <code>→</code> листают по кадру. <code>Shift+←</code> / <code>Shift+→</code> — по десять кадров.</td>
+</tr>
+<tr>
+<td>Повторять только часть движения</td>
+<td>На первом кадре нажмите <code>I</code>, на последнем — <code>O</code>. Границы также задаются полями <strong>In / Out</strong> и золотыми маркерами шкалы. В <strong>Playback → Looping</strong> включите <strong>Loop</strong>. <code>Ctrl+R</code> возвращает весь диапазон.</td>
+</tr>
+<tr>
+<td>Перейти к началу движения или к склейке</td>
+<td><code>Home</code> / <code>End</code> — начало и конец материала. <code>Ctrl+Home</code> / <code>Ctrl+End</code> — начало и конец диапазона. <code>Ctrl+←</code> / <code>Ctrl+→</code> — соседние склейки активного таймлайна.</td>
+</tr>
+<tr>
+<td>Увидеть ключевые положения</td>
+<td><strong>Playback → Set Playback Frame Step…</strong> задаёт шаг проигрывания. Поставьте 2 для показа через кадр, верните 1 для показа всех кадров. Чтобы смотреть только отмеченные позы, поставьте закладки и запустите просмотр по ним (<code>Ctrl+Пробел</code>).</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Две шкалы времени.</strong> <strong>Global Time Control</strong> показывает весь материал, <strong>Range Time Control</strong> разворачивает выбранный In/Out на ширину шкалы. Клавиша <code>T</code> меняет их местами. Двойным щелчком по шкале можно добавить заметку.</p>
+<p><strong>Поведение на границах.</strong> <strong>Play Once</strong> проигрывает один раз, <strong>Loop</strong> повторяет, <strong>Ping-Pong</strong> чередует движение вперёд и назад. <code>Ctrl+L</code> переключает эти режимы. <strong>Loop Delay…</strong> задаёт паузу между проходами, <strong>Hold Empty Frame During Delay</strong> показывает в паузу пустой кадр. При ручном поиске <strong>Loop on Step / Scrub</strong> разрешает перейти через край, <strong>Loop Step / Scrub to Range</strong> использует края диапазона, <strong>Lock Step / Scrub to Range</strong> останавливает на границе. <strong>Autoplay</strong> автоматически начинает воспроизведение после импорта или смены основного материала.</p>
+<p><strong>Звук.</strong> <code>↑</code> / <code>↓</code> меняют громкость, <code>M</code> выключает или возвращает звук. В <strong>Audio → Source Audio Track</strong> можно выбрать другую дорожку ролика. <strong>Audio Scrub</strong> (<code>Shift+S</code>) даёт коротко услышать звук при перемотке — удобно для поиска начала реплики. <strong>Preserve Pitch When Changing Speed</strong> сохраняет высоту голоса при замедлении. Если звук опаздывает, выберите источник и откройте <strong>Edit → Source / Timeline Properties… → Source audio offset</strong>. Положительное число миллисекунд сдвигает звук раньше, отрицательное — позже. Изменение действует во всех клипах, где используется этот источник.</p>
+<p><a id="project"></a></p>
+<h2 id="section-4">Работать с проектом и таймлайном</h2>
+<p><strong>Источник</strong> — файл или серия изображений. <strong>Клип</strong> использует выбранный фрагмент источника. <strong>Таймлайн</strong> собирает клипы в нужном порядке. Например, один длинный playblast можно дважды положить на таймлайн и оставить в каждом клипе разную часть движения.</p>
+<ol>
+<li><strong>Добавьте материал.</strong> <code>Ctrl+I</code> позволяет выбрать несколько видео, звуковых файлов или изображений. <strong>File → Import Folder…</strong> добавляет подходящие файлы папки как отдельные источники. Чтобы серия картинок стала <strong>одним клипом</strong>, используйте <strong>File → Import Image Sequence…</strong>. Выделите кадры и задайте частоту, например <code>24/1</code> или <code>24000/1001</code>. Файлы сортируются по именам, поэтому последовательность вида <code>shot.0001.png</code>, <code>shot.0002.png</code> удобнее для импорта.</li>
+<li><strong>Соберите порядок.</strong> В панели <strong>Project</strong> нажмите правую кнопку и выберите <strong>New Timeline…</strong>. Дважды щёлкните по таймлайну, чтобы сделать его активным. Перетащите на него источники или выберите у источника <strong>Append to Active Timeline</strong>. В <strong>Details → Timeline</strong> кнопки со стрелками меняют порядок клипов.</li>
+<li><strong>Подрежьте фрагмент.</strong> Дважды щёлкните по клипу. В <strong>Clip Properties…</strong> задайте <strong>Source in</strong> и <strong>Source out</strong>. В этих полях первый кадр исходника имеет номер 0, а последний выбранный кадр включается в клип. Здесь же можно переименовать клип, изменить усиление и смещение звука в секундах или приглушить его. Для озвучки отдельным файлом импортируйте этот файл и выберите в контекстном меню клипа <strong>Replace Audio…</strong>. <strong>Original source audio</strong> возвращает исходный звук.</li>
+<li><strong>Организуйте проект.</strong> Создавайте папки через <strong>New Folder…</strong>, перетаскивайте в них объекты и ищите их по имени в фильтре <strong>Project</strong>. В контекстном меню доступны переименование, удаление, назначение в A–D и выбор <strong>Default timeline for imports</strong>. Если переместили исходник, выберите <strong>Relink Source…</strong>. Для перенесённой серии укажите первый кадр в новой папке.</li>
+<li><strong>Сохраните версию.</strong> <code>Ctrl+S</code> сохраняет текущий проект, <code>Ctrl+Shift+S</code> сохраняет под новым именем. Для открытия используйте <code>Ctrl+O</code>. <strong>File → Import Project…</strong> добавляет другой проект к текущему. <strong>Open New Instance</strong> открывает второй плеер. В <strong>Recent Files</strong> и <strong>Recent Projects</strong> можно вернуться к недавней работе.</li>
+</ol>
+<p>В <strong>Edit → Project Settings…</strong> задаются имя, частота кадров проекта и размер изображения <strong>Viewer output</strong>. Флажок <strong>Apply frame rate to all timelines</strong> применяет новую частоту к существующим таймлайнам. <strong>Edit → Source / Timeline Properties…</strong> меняет параметры выбранного материала, включая отображаемый номер первого кадра, масштаб и сдвиг вида. Для последовательностей, отдельных изображений и таймлайнов можно задать свою частоту кадров.</p>
+<p><a id="draw"></a></p>
+<h2 id="section-5">Нарисовать правку поверх кадра</h2>
+<ol>
+<li>Остановите воспроизведение на нужной позе и нажмите <code>F8</code>. В режиме сравнения выберите область той версии, к которой относится правка.</li>
+<li>Выберите <strong>Pencil</strong> для свободной линии, <strong>Arrow</strong> для стрелки, <strong>Rectangle</strong> или <strong>Ellipse</strong> для рамки. Нажмите <strong>Text</strong> и щёлкните там, где нужна надпись. На панели параметров доступны толщина, <strong>Opacity</strong> и <strong>Color</strong>. <strong>Eraser</strong> стирает разметку выбранного слоя.</li>
+<li>Для правки одного кадра оставьте <strong>FG</strong>. Переключитесь на <strong>BG</strong>, если ориентир должен оставаться на всех кадрах этого источника или таймлайна. <strong>Hold</strong> удерживает рисунок переднего плана до следующего кадра с рисунком.</li>
+<li>Чтобы проверить траекторию, включите <strong>Ghost</strong>. Рядом с текущей позой появятся рисунки соседних кадров. Правая кнопка по <strong>Ghost</strong> открывает настройки количества рисунков до и после кадра, их оттенков и подсчёта по кадрам или ключевым рисункам.</li>
+<li>Нажмите <code>F8</code> ещё раз, чтобы выйти из рисования. В <strong>Video → Annotations</strong> можно показывать рисунки всегда (<strong>On</strong>), только при остановке (<strong>Off During Playback</strong>) или временно скрыть (<strong>Off</strong>).</li>
+</ol>
+<p><strong>Исправить или очистить.</strong> <code>Esc</code> отменяет незавершённый штрих. <code>Ctrl+Z</code> в режиме рисования отменяет действие на текущем кадре и слое. После выхода из рисования та же клавиша отменяет изменение проекта. <strong>Clear Frame</strong> очищает рисунки переднего плана текущего кадра. При выбранном <strong>BG</strong> эта команда очищает общий фон данного материала. <strong>Background Fill</strong> задаёт цвет и прозрачность подложки.</p>
+<p><strong>Показать место во время разбора.</strong> <code>Shift+L</code> включает лазерную указку. Проведите линию мышью — след постепенно исчезнет и не попадёт в выдачу. <code>Shift+I</code> включает пипетку. Щёлкните по картинке, чтобы взять цвет для рисования. <code>Esc</code> или правая кнопка завершает работу с указкой или пипеткой.</p>
+<p><strong>Планшет и текст.</strong> В <strong>Edit → Preferences… → Annotation</strong> можно настроить нажим карандаша и ластика, сглаживание новых штрихов и параметры лазера. Если перо ведёт себя необычно, проверьте <strong>Last pen event</strong> и выбор <strong>Windows Ink / WinTab</strong>. Для ввода текста непосредственно на кадре снимите флажок <strong>Use a dialog for text annotations</strong>. <code>Ctrl+Enter</code> применяет надпись, <code>Esc</code> отменяет ввод.</p>
+<p><a id="notes"></a></p>
+<h2 id="section-6">Добавить закладку, оставить заметку и передать список правок</h2>
+<ul>
+<li><strong>Пометить позу.</strong> Нажмите <code>B</code> для закладки на кадре или <code>Shift+B</code> для закладки на весь текущий In/Out. Повторное нажатие снимает метку. Клавишами <code>,</code> и <code>.</code> переходите между закладками. С <code>Shift</code> переходите между закладками-диапазонами и восстанавливаете их границы.</li>
+<li><strong>Записать замечание.</strong> Нажмите <code>Ctrl+W</code>, введите текст, по желанию добавьте автора и цвет. Список открывается по <code>Ctrl+Shift+B</code> (<strong>Notes &amp; Bookmarks</strong>). Здесь можно вернуться к замечанию, отредактировать или удалить его.</li>
+<li><strong>Отобрать нужное.</strong> <strong>Bookmarks → Filter</strong> показывает все метки, пустые, с заметками или с рисунками. <strong>Remove Empty Bookmarks</strong> удаляет пустые закладки у текущего материала. <code>Ctrl+Пробел</code> или <code>Shift+Пробел</code> запускает просмотр по закладкам внутри диапазона.</li>
+<li><strong>Перенести рисунок на другой кадр.</strong> На исходном кадре выберите <strong>Bookmarks → Copy Bookmark</strong> или <strong>Cut Bookmark</strong>, перейдите к целевому кадру и нажмите <strong>Paste Bookmark</strong>. Вставка заменяет его рисунки FG и при необходимости создаёт закладку.</li>
+<li><strong>Передать комментарии таблицей.</strong> Выберите <strong>Bookmarks → Notes → Export CSV…</strong>. При обратной загрузке через <strong>Import CSV…</strong> сопоставьте колонки кадра и текста, при необходимости — автора. Если в таблице номера такие же, как на экране, включите <strong>CSV frame numbers use displayed numbering</strong>. Проверьте номера и тексты в предварительном просмотре. При обмене внутри того же проекта <strong>Preserve matching timeline / source IDs</strong> позволяет сохранить привязку к исходным роликам и таймлайнам.</li>
+</ul>
+<p><a id="export"></a></p>
+<h2 id="section-7">Сохранить результат и передать его коллеге</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Что должен получить коллега</th>
+<th>Что выбрать</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Один кадр для сообщения</td>
+<td><strong>File → Capture Image → To Clipboard</strong> (<code>Ctrl+Shift+C</code>). Затем вставьте картинку в чат. <strong>To File…</strong> сохраняет кадр как PNG, JPEG или TIFF.</td>
+</tr>
+<tr>
+<td>Видео с видимыми версиями, рисунками и направляющими</td>
+<td><code>Ctrl+E</code> → <strong>Video file → Viewer Capture</strong>. Установите нужную раскладку, включите <strong>Include annotations</strong>, проверьте видимость рисунков.</td>
+</tr>
+<tr>
+<td>Видео самих клипов в монтажном порядке</td>
+<td><code>Ctrl+E</code> → <strong>Video file → Timeline Sources</strong>. Так можно получить монтаж без экранного разделения A/B и оверлеев.</td>
+</tr>
+<tr>
+<td>Только звук</td>
+<td><code>Ctrl+E</code> → <strong>Audio file</strong>, затем укажите файл WAV или M4A.</td>
+</tr>
+<tr>
+<td>Отдельные кадры или только отмеченные позы</td>
+<td><code>Ctrl+E</code> → <strong>Image sequence</strong>. Для выборки по закладкам выберите <strong>Viewer Capture</strong> и <strong>Only bookmarked frames</strong>.</td>
+</tr>
+<tr>
+<td>Возможность продолжить работу</td>
+<td>Передайте проект <code>.oframe</code> <strong>и исходные медиа</strong>. Для списка текстовых правок отдельно можно приложить CSV.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="section-8">Как экспортировать видео</h3>
+<ol>
+<li>Задайте начало и конец фрагмента через <code>I</code> и <code>O</code>. В <strong>File → Export to File…</strong> укажите тип результата и путь. Для полной длины включите <strong>Ignore range (entire timeline)</strong>.</li>
+<li>Выберите <strong>Viewer Capture</strong> или <strong>Timeline Sources</strong> по таблице выше. Введите <strong>Resolution</strong> и <strong>Output FPS</strong>. Например, для Full HD с частотой 24 кадра/с поставьте <strong>1920×1080</strong> и <strong>24/1</strong>. При обычном экспорте ролика с переменной частотой плеер сохраняет темп движения на заданной постоянной выходной частоте.</li>
+<li>Для повседневного просмотра подойдёт <strong>MPEG-4</strong> в MP4. Также доступны AVI и <strong>H.264 — Windows Media Foundation</strong>, если кодировщик есть в системе. Для копии без потерь выберите <strong>FFV1</strong> в MKV. Поле <strong>Quality (CRF)</strong> относится к сжатию при экспорте. Качество playblast в Maya задаётся отдельно.</li>
+<li>Проверьте <strong>Include audio</strong>, <strong>Include annotations</strong> и количество кадров внизу диалога. Если для рисунков нужен другой фон, при <strong>Viewer Capture</strong> включите <strong>Override annotation background</strong>. Нажмите <strong>Export</strong>. Пока идёт запись, доступна <strong>Cancel</strong>. По завершении Проводник выделит готовый файл, а для серии — первый сохранённый кадр. При повторной выдаче плеер запросит подтверждение замены, если выключен <strong>Force overwrite without confirmation</strong>.</li>
+</ol>
+<p><strong>Серия изображений.</strong> Укажите папку, формат PNG, JPG, BMP или TIFF, общее имя <strong>Sequence base name</strong> и число цифр <strong>Sequence padding</strong>. Нумерацию можно начать с 0, 1, собственного числа или выбрать <strong>Match timeline frame</strong>, чтобы имена совпали с номерами кадров в плеере. <strong>Capture every N frames</strong> в режиме Viewer Capture позволяет взять, например, каждый второй кадр. В видео с таким шагом выбранные кадры идут подряд с заданным выходным FPS. При сплошной серии изображений <strong>Include audio</strong> добавляет файл <code>audio.wav</code>. При выборке с шагом или по закладкам сохраняются только изображения.</p>
+<p><strong>Если важен цвет исходника.</strong> Для обычного просмотра оставьте <strong>Display converted (sRGB)</strong>. Для передачи исходной цветовой кодировки выберите <strong>Timeline Sources → Preserve source color encoding</strong>. Для видео используйте <strong>FFV1 / MKV</strong> и выберите <strong>Component depth</strong> по материалу. Доступны 8, 10, 12 и 16 бит, для HDR с сохранением кодировки нужно минимум 10. Для изображений подходит <strong>PNG</strong> с явно указанными <strong>16 bit</strong>, если профиль источника это допускает. Для материала с ограниченным диапазоном сигнала используйте FFV1. Если сочетание параметров не подходит, пояснение появится в самом окне экспорта.</p>
+<p><a id="workspace"></a></p>
+<h2 id="section-9">Устроить рабочее место под себя</h2>
+<p><strong>Tools</strong> управляет панелями. <strong>Project</strong> показывает материалы и таймлайны, <strong>Details</strong> — свойства и монтаж, <strong>Notes &amp; Bookmarks</strong> — список правок, <strong>Console</strong> — сообщения плеера. <strong>Viewer Controls</strong> возвращает верхние списки A–D и ползунок сравнения, <strong>Playback Controls</strong> — транспорт. Можно скрыть одну из шкал времени, перенести боковую панель вправо или влево, а через <strong>Reset Layout</strong> вернуть исходное расположение. <code>Ctrl+Shift+M</code> скрывает и возвращает строку меню. <strong>Edit → Always on Top</strong> оставляет окно поверх Maya.</p>
+<p>Откройте <strong>Edit → Preferences…</strong> (<code>Ctrl+,</code>), чтобы изменить привычное поведение плеера.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Что хочется изменить</th>
+<th>Где искать</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Прокрутку, звук и открытие роликов</td>
+<td><strong>General</strong>. Здесь можно настроить паузу при перемотке, её чувствительность и непрерывность, управление масштабом мышью, звук при обратном ходе, сохранение высоты тона и всплывающую громкость. Также доступны открытие роликов в отдельных окнах, подгонка окна при импорте, подсветка текущего клипа и переход кнопками транспорта к границам In/Out.</td>
+</tr>
+<tr>
+<td>Списки недавних файлов и поведение при выходе</td>
+<td><strong>General</strong> позволяет задать длину списков, подтверждение закрытия, видимость инструментов рисования при запуске, объём памяти для кэша и папку временных файлов плеера. Новая временная папка применяется при следующем запуске.</td>
+</tr>
+<tr>
+<td>Начальные настройки проектов</td>
+<td><strong>Project</strong>. Стартовая папка медиа, частота последовательностей, первый отображаемый номер кадра, стандартный таймлайн, восстановление масштаба и удержания рисунков при открытии.</td>
+</tr>
+<tr>
+<td>Свои сочетания клавиш</td>
+<td><strong>Keyboard</strong>. Найдите действие по названию, введите сочетание и нажмите <strong>Assign</strong>. Если клавиши уже заняты, диалог покажет, какую команду они вызывают. <strong>Remove</strong> снимает привязку, <strong>Restore Defaults</strong> возвращает стандартные.</td>
+</tr>
+<tr>
+<td>Карандаш, текст, перо или лазер</td>
+<td><strong>Annotation</strong>. Здесь задаются вид ввода текста и размер его окна, сглаживание штрихов, нажим, способ ввода с планшета, а также цвет, толщина и время затухания лазера.</td>
+</tr>
+<tr>
+<td>Обычные параметры выдачи</td>
+<td><strong>Export</strong>. Укажите папку, размер, формат, кодек, настройки звука, аннотаций и диапазона. Можно заранее выбрать захват вида и поведение при перезаписи. Для отдельной выдачи параметры доступны в <code>Ctrl+E</code>.</td>
+</tr>
+<tr>
+<td>Звук при перемотке по разным шкалам</td>
+<td><strong>Advanced</strong> позволяет отдельно включить звук для области просмотра и каждой из шкал времени, настроить чувствительность при <code>Shift</code> и <code>Alt</code> и включить историю отмены изменений проекта.</td>
+</tr>
+<tr>
+<td>Подключение Maya</td>
+<td>В <strong>Network</strong> включается локальное подключение, задаются порт и время ожидания ответа. При обычной работе оставьте автоматический выбор порта.</td>
+</tr>
+</tbody>
+</table></div>
+<p><a id="faq"></a></p>
+<h2 id="section-10">Частые вопросы</h2>
+<p><strong>Maya открыла окно OF Maya, но кнопка записи недоступна.</strong> Запустите сам плеер бирюзовой кнопкой. В OF Maya нажмите <strong>Connect</strong> и дождитесь <strong>Connected</strong>. Если плеер не найден, проверьте <strong>Edit → Preferences… → Network → Enable local integration server</strong>. При нескольких плеерах выберите нужный в списке OF Maya. Для повторяющейся ошибки ожидания в <strong>Advanced → Connection timeout</strong> можно увеличить время ответа.</p>
+<p><strong>В двух версиях слышна одна и та же дорожка.</strong> В режимах сравнения звук идёт из A. Чтобы отдельно услышать B, переключитесь в <strong>Single B</strong>. Если сам playblast записан без звука, проверьте <strong>Include audio</strong> и выбранный узел в Maya. Для проверки отдельной звуковой дорожки ролика используйте <strong>Audio → Source Audio Track</strong>.</p>
+<p><strong>После переноса проекта вместо изображения пусто.</strong> Файл <code>.oframe</code> ссылается на исходные медиа. Скопируйте ролики или всю папку кадров на локальный диск и воспользуйтесь <strong>Relink Source…</strong> в панели <strong>Project</strong>. OpenFrame работает с обычными локальными путями. Для материала на сетевом диске или в папке-ссылке используйте локальную копию.</p>
+<p><strong>На экране всё было правильно, а в экспорте видна только одна версия.</strong> Перед <code>Ctrl+E</code> верните нужную раскладку. В окне экспорта выберите <strong>Viewer Capture</strong>. Если нужны и рисунки, проверьте <strong>Include annotations</strong> и <strong>Video → Annotations → On</strong>. Для картинки без подписей выключите <strong>Tools → Media Info</strong>.</p>
+<p><strong>Ролик в плеере выглядит менее резким или тяжёлый материал воспроизводится рывками.</strong> Для оценки резкости смотрите один слот, проверьте <strong>Viewer output</strong> и размер исходника. Для разбора движения у тяжёлого HDR-материала можно временно уменьшить <strong>Viewer output</strong> или использовать облегчённую копию. Перед финальной выдачей снова проверьте размер и цвет. <a href="#picture">Как проверить изображение</a></p>
+<p><strong>Спрятал меню или панель и не могу вернуть.</strong> <code>Ctrl+Shift+M</code> возвращает строку меню. Откройте <strong>Tools → Reset Layout</strong> или включите отдельно нужную панель. Краткая справка плеера открывается по <code>F1</code>, номер версии — в <strong>Help → About OpenFrame…</strong>.</p>
+<p><a id="keys"></a></p>
+<h2 id="section-11">Горячие клавиши на каждый день</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Клавиши</th>
+<th>Что произойдёт</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Ctrl+I</code> · <code>Ctrl+N</code> · <code>Ctrl+O</code></td>
+<td>Импортировать медиа · создать проект · открыть проект</td>
+</tr>
+<tr>
+<td><code>Ctrl+S</code> · <code>Ctrl+Shift+S</code> · <code>Ctrl+E</code></td>
+<td>Сохранить проект · сохранить копию под другим именем · экспортировать</td>
+</tr>
+<tr>
+<td><code>Пробел</code> · <code>J</code> / <code>K</code> / <code>L</code></td>
+<td>Воспроизведение или пауза · назад / пауза / вперёд</td>
+</tr>
+<tr>
+<td><code>←</code> / <code>→</code> · <code>Shift+←</code> / <code>Shift+→</code></td>
+<td>На один кадр · на десять кадров. С <code>Alt</code> стрелки также перемещают на десять</td>
+</tr>
+<tr>
+<td><code>I</code> / <code>O</code> · <code>Ctrl+R</code> · <code>Ctrl+L</code></td>
+<td>Поставить начало / конец диапазона · вернуть полный диапазон · сменить режим повтора</td>
+</tr>
+<tr>
+<td><code>Home</code> / <code>End</code> · <code>Ctrl+Home</code> / <code>Ctrl+End</code></td>
+<td>К краям материала · к краям диапазона</td>
+</tr>
+<tr>
+<td><code>Ctrl+←</code> / <code>Ctrl+→</code> · <code>T</code></td>
+<td>К предыдущей / следующей склейке · поменять шкалы местами</td>
+</tr>
+<tr>
+<td><code>Ctrl+Tab</code> · <code>F11</code></td>
+<td>Поменять A и B местами · включить или выключить полный экран</td>
+</tr>
+<tr>
+<td><code>Ctrl++</code> / <code>Ctrl+-</code> · <code>/</code> · <code>Ctrl+/</code></td>
+<td>Увеличить / уменьшить · переключить pan/zoom · сбросить вид</td>
+</tr>
+<tr>
+<td><code>↑</code> / <code>↓</code> · <code>M</code> · <code>Shift+S</code></td>
+<td>Изменить громкость · выключить или вернуть звук · переключить звук перемотки</td>
+</tr>
+<tr>
+<td><code>B</code> · <code>Shift+B</code> · <code>Ctrl+W</code></td>
+<td>Закладка на кадр · закладка на диапазон · заметка</td>
+</tr>
+<tr>
+<td><code>,</code> / <code>.</code> · <code>Shift+,</code> / <code>Shift+.</code></td>
+<td>Между закладками · между закладками-диапазонами</td>
+</tr>
+<tr>
+<td><code>Ctrl+Пробел</code> или <code>Shift+Пробел</code> · <code>Ctrl+Shift+B</code></td>
+<td>Просмотр по закладкам · открыть панель замечаний</td>
+</tr>
+<tr>
+<td><code>F8</code> · <code>Shift+I</code> · <code>Shift+L</code> · <code>Esc</code></td>
+<td>Рисование · пипетка · лазер · выйти из указателя или отменить незавершённый жест</td>
+</tr>
+<tr>
+<td><code>Ctrl+Z</code> · <code>Ctrl+Y</code> или <code>Ctrl+Shift+Z</code></td>
+<td>Отменить · повторить действие</td>
+</tr>
+<tr>
+<td><code>Ctrl+Shift+C</code> · <code>Ctrl+,</code> · <code>F1</code></td>
+<td>Скопировать текущий кадр · открыть настройки · открыть справку</td>
+</tr>
+</tbody>
+</table></div>
+</main>
+</body>
+</html>
