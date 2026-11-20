@@ -1,0 +1,301 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-11-20T03:13:03.982908+03:00",
+  "status": "Functional implementation; full reference parity remains incomplete",
+  "artifact": {
+    "path": "dist/OpenFrame/OpenFrame.exe",
+    "sha256": "edbae2a0cd87f965a5589743316e0d8367f0119a05474cc5c4c216ff007637ab",
+    "version": "0.1.0",
+    "binaryManifestFilesVerified": 38,
+    "qt": "6.8.3",
+    "ffmpeg": "7.1.5",
+    "os": "Windows 11 x64 build 26300"
+  },
+  "finalCandidateChecks": {
+    "ctestSuitesPassed": 5,
+    "ctestSuitesFailed": 0,
+    "nativeApiAssertions": 605,
+    "pythonAdapterTests": 21,
+    "coreQtTestTotalIncludingLifecycle": 33,
+    "coreSkipped": 0,
+    "runtimeMediaChecks": 12,
+    "runtimePcmSamples": 240000,
+    "runtimePulseThresholdOffsetSeconds": [
+      4.1666666666666665E-05,
+      4.1666666666666665E-05,
+      4.1666666666666665E-05,
+      4.1666666666666665E-05,
+      4.1666666666666665E-05
+    ],
+    "vfr": {
+      "inputFrames": 97,
+      "outputFramesAt24": 120,
+      "outputFramesAt60": 300,
+      "sourceVideoPtsSpanSeconds": 4.999,
+      "cfrVideoSeconds": 5.0,
+      "usesCfrResampling": true
+    },
+    "ui": {
+      "runsPassed": 5,
+      "commandCount": 124,
+      "mainWindowCaptures": 10,
+      "dialogCaptures": 110
+    },
+    "ffmpegProtocols": {
+      "input": [
+        "file",
+        "pipe"
+      ],
+      "output": [
+        "file",
+        "pipe"
+      ]
+    },
+    "longGop": {
+      "long2997-gop900-aac": {
+        "source": {
+          "video_codec": "h264",
+          "audio_codec": "aac",
+          "frame_count": 2700,
+          "fps": "30000/1001",
+          "seconds": 90.09,
+          "width": 160,
+          "height": 90,
+          "keyframe_indices": [
+            0,
+            900,
+            1800
+          ],
+          "maximum_gop_frames": 900,
+          "maximum_gop_seconds": 30.03,
+          "picture_types": {
+            "I": 3,
+            "B": 2022,
+            "P": 675
+          },
+          "tail_start_frames_after_keyframe": 852
+        },
+        "output": {
+          "frame_count": 48,
+          "fps": "30000/1001",
+          "video_end_seconds": 1.601,
+          "format_seconds": 1.602,
+          "pcm": {
+            "samples": 76877,
+            "sample_rate": 48000,
+            "seconds": 1.6016041666666667,
+            "channel_rms": [
+              0.11309124728343489,
+              0.08481583779038834
+            ],
+            "channel_rms_dbfs": [
+              -18.931420121402752,
+              -21.430460874031574
+            ],
+            "not_silent": true
+          },
+          "expected_pcm_samples": 76877,
+          "rgb": {
+            "first": {
+              "mae": 0.0,
+              "rmse": 0.0,
+              "p99_absolute_error": 0,
+              "maximum_absolute_error": 0,
+              "psnr_db": null,
+              "identical": true,
+              "within_limits": true
+            },
+            "last": {
+              "mae": 0.0,
+              "rmse": 0.0,
+              "p99_absolute_error": 0,
+              "maximum_absolute_error": 0,
+              "psnr_db": null,
+              "identical": true,
+              "within_limits": true
+            }
+          }
+        }
+      },
+      "long60-gop1800-aac": {
+        "source": {
+          "video_codec": "h264",
+          "audio_codec": "aac",
+          "frame_count": 5400,
+          "fps": "60/1",
+          "seconds": 90.0,
+          "width": 160,
+          "height": 90,
+          "keyframe_indices": [
+            0,
+            1800,
+            3600
+          ],
+          "maximum_gop_frames": 1800,
+          "maximum_gop_seconds": 30.0,
+          "picture_types": {
+            "I": 3,
+            "B": 4047,
+            "P": 1350
+          },
+          "tail_start_frames_after_keyframe": 1740
+        },
+        "output": {
+          "frame_count": 60,
+          "fps": "60/1",
+          "video_end_seconds": 0.999,
+          "format_seconds": 1.0,
+          "pcm": {
+            "samples": 48000,
+            "sample_rate": 48000,
+            "seconds": 1.0,
+            "channel_rms": [
+              0.11309787947561391,
+              0.08481525434695901
+            ],
+            "channel_rms_dbfs": [
+              -18.93091075572132,
+              -21.430520623988656
+            ],
+            "not_silent": true
+          },
+          "expected_pcm_samples": 48000,
+          "rgb": {
+            "first": {
+              "mae": 0.0,
+              "rmse": 0.0,
+              "p99_absolute_error": 0,
+              "maximum_absolute_error": 0,
+              "psnr_db": null,
+              "identical": true,
+              "within_limits": true
+            },
+            "last": {
+              "mae": 0.0,
+              "rmse": 0.0,
+              "p99_absolute_error": 0,
+              "maximum_absolute_error": 0,
+              "psnr_db": null,
+              "identical": true,
+              "within_limits": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "otherCandidateEvidence": {
+    "mayaGui": {
+      "exeSha256": "26252e1a516f063cf247f2ccc49e885a861f964c7b3fcb98f7e3c0815bd7e4a4",
+      "version": "2024",
+      "checksPassed": 14,
+      "packagedAdapterMatchesCurrentSource": true,
+      "note": "Passed before the subsequent VFR exporter/FPS control change; Maya adapter unchanged."
+    },
+    "facadeAndCodecs": {
+      "exeSha256": "f69dd70b546f0064aba990bc6934434f5d9c3f28e750b886121e03c31dc15824",
+      "facadeChecksPassed": 55,
+      "mpeg4": {
+        "frames": 120,
+        "fps": 24.0,
+        "videoSeconds": 5.0,
+        "audioSamples": 240640,
+        "audioRmsDbfs": -30.49461752899111,
+        "paddingSamples": 640
+      },
+      "h264_mf": {
+        "frames": 120,
+        "fps": 24.0,
+        "videoSeconds": 5.0,
+        "audioSamples": 240640,
+        "audioRmsDbfs": -30.49461752899111,
+        "paddingSamples": 640
+      },
+      "input60Hz": {
+        "events": 180,
+        "maxRequestsPerSecond": 36,
+        "syncCalls": 99,
+        "errors": 0,
+        "finalFrame": 59,
+        "adapterModule": "D:\\Work\\wws\\wws-unity\\Assets\\Content\\Animations\\~Misc~\\Maya\\Script\\OpenFrame\\dist\\OpenFrame\\maya\\openframe_maya\\adapter.py"
+      },
+      "input120Hz": {
+        "events": 360,
+        "maxRequestsPerSecond": 36,
+        "syncCalls": 100,
+        "errors": 0,
+        "finalFrame": 119,
+        "adapterModule": "D:\\Work\\wws\\wws-unity\\Assets\\Content\\Animations\\~Misc~\\Maya\\Script\\OpenFrame\\dist\\OpenFrame\\maya\\openframe_maya\\adapter.py"
+      }
+    }
+  },
+  "notEstablished": [
+    "Original project/CSV and wire-protocol compatibility",
+    "Exact reference UI and behavior parity against the now selected installed version 1.7.1",
+    "HDR/high-bit-depth rendering; video alpha/color parity",
+    "Physical mixed-DPI monitor transitions, audio hot-plug and multi-hour drift",
+    "Complete ETW/WFP network trace and OS-level containment",
+    "Crash/power-loss recovery during multi-file sequence publication"
+  ],
+  "knownBehaviorDifferences": [
+    "Per-pane video pan/zoom; annotations remain pane-local overlays",
+    "Sparse image-sequence export has no audio sidecar",
+    "Own authenticated API and .oframe format"
+  ],
+  "evidence": [
+    {
+      "path": "build/Testing/Temporary/LastTest.log",
+      "sha256": "29cbcf885607fd1b36457493fab3192f1e99fb351163026ad10ae13d08078c1e"
+    },
+    {
+      "path": "test-results/core-vfr-7.1.5.txt",
+      "sha256": "e38c8636dca0c077ec4fa25db08ffa178af7674024c8a5c27cffb3386661eaa5"
+    },
+    {
+      "path": "test-results/package-final-vfr-build.log",
+      "sha256": "6888c8e00a2420dfde05c6b5e56166951c32c99cd7fa47cc6f951eaf6e78ea76"
+    },
+    {
+      "path": "test-results/ui-validation-summary.json",
+      "sha256": "38a3f24589a5e0d4d18281062acad18cd17d2f668c660c5ba058b162e9d6b788"
+    },
+    {
+      "path": "test-results/packaged-final/media/runtime-report.json",
+      "sha256": "25cd7d095a0ec2ea477ec7d5ab041f97c1dc2391d6d41d704a1b7c91c2b27a4a"
+    },
+    {
+      "path": "test-results/packaged-final/ffmpeg-policy.json",
+      "sha256": "15b9c01828999bd96a0b09fbcab3f1409c8960b19adf739a0ad446ed71db7c53"
+    },
+    {
+      "path": "test-results/packaged-long-media/long-media-report.json",
+      "sha256": "44e846fae12880e0c7ff717bc02ea715d018e921d370871e88455284b0985181"
+    },
+    {
+      "path": "test-results/packaged-long-media/own-instance.json",
+      "sha256": "5025789900ec9e5b385c914638eca5e7c424ce7926ef8dc4956fbb5752eec380"
+    },
+    {
+      "path": "test-results/packaged-runtime-ui2/maya/maya-report.json",
+      "sha256": "91d24f762eb5b4f30e522ade6b387c1bcb3d7f726590a32a7bf9595fff053368"
+    },
+    {
+      "path": "test-results/packaged-runtime-ui2/process.json",
+      "sha256": "7c4931278da76cb5b4ee55f857affacaea1881ba13d3c32f671004768e72ffbc"
+    },
+    {
+      "path": "test-results/packaged-integration/summary.json",
+      "sha256": "c9c50188ca907ceff71010b99790ccae57394247a085940870c70bd097268df0"
+    },
+    {
+      "path": "test-results/client-contract-1.5.7.json",
+      "sha256": "cf38a99a3586f5115a18f118740fcaceeaf86101a39ea44e44940221bf9b641e"
+    }
+  ],
+  "referenceSelection": {
+    "version": "1.7.1",
+    "identity": "docs/REFERENCE.json",
+    "selection": "Installed copy, confirmed by MSI ProductVersion and matching EXE SHA-256",
+    "scope": "Selection recorded after the 0.1.0 acceptance; does not add differential coverage"
+  }
+}

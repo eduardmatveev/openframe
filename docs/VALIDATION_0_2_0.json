@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "applicationVersion": "0.2.0",
+  "recordedUtc": "2026-11-20T06:59:45.7013624Z",
+  "referenceVersion": "1.7.1",
+  "comparativeParity": "UNVERIFIED",
+  "executableSha256": "28ff7123f40832eefd0bbcb18826e39b03ca59cc0d8c9c8727f28e47607a2022",
+  "packagedBinaryManifestCount": 38,
+  "checks": {
+    "ctestSuites": 5,
+    "ctestPassed": 5,
+    "coreQtCases": 38,
+    "coreSkipped": 0,
+    "uiQtCases": 27,
+    "apiAssertions": 800,
+    "pythonMayaTests": 24,
+    "newPackagedFeatureChecks": 17,
+    "newPackagedFeaturesPassed": true,
+    "packagedMediaChecks": 12,
+    "packagedMediaPassed": true,
+    "actualMayaGuiChecks": 14,
+    "actualMayaGuiPassed": true,
+    "actualMayaVersion": "2024",
+    "playblastStartsAt17ReturnsTo1": true,
+    "facadeChecks": 55,
+    "facadePassed": true,
+    "packagedRuntimeModules": 17,
+    "ffmpegNetworkDisabled": true
+  },
+  "observations": [
+    "Image overlay rendered in actual image export with exact expected center/outside RGB pixels.",
+    "Audio tracks exported 144000 stereo PCM16 samples at48000 Hz; 440 Hz and independent880/660 Hz signals within1 Hz.",
+    "Global pan/zoom restored per primary owner; selected audio track, overlay and loop settings survived project reopening.",
+    "Real process entered loop delay; pause cancelled it.",
+    "Synthetic tests repaired two measurement errors: letterbox sample location and zero-crossing recrossings below1 percent full scale.",
+    "System msvcp_win.dll is a Windows component; app-local audit concerns Qt/FFmpeg/VC140 libraries."
+  ],
+  "limitations": [
+    "No reference UI/pixel differential run: node/CUA host process creation failed with MXC HRESULT0x8007000F.",
+    "Reference unchanged MSI copy reported Untitled(Demo) in zero-capability AppContainer; all22 installed payload files match MSI by hash.",
+    "UI captures238 belong to documented intermediate hashes; final copy-only change is covered by the final rebuild/CTest, not a repeated whole capture corpus.",
+    "No physical DAC/acoustic latency or full process-tree ETW/WFP trace measured.",
+    "This is a fixed0.2.0 checkpoint; later source edits do not inherit these results."
+  ],
+  "evidence": [
+    {
+      "path": "test-results/package-0.2.0-wave1.log",
+      "sha256": "d825d1bb109149a97492e4d102a8b15504d9db1886533c4105ebcc96e7f0565c"
+    },
+    {
+      "path": "test-results/core-171-final.txt",
+      "sha256": "4b7543eeb119a39f6fa50eb4ee1ec0a9f12317730b8571ec0a6c40bdba56e651"
+    },
+    {
+      "path": "test-results/ui-wave-tests.txt",
+      "sha256": "cbef38c4f20677ad0a486f8122e3a80854c3ffdf6ec442fd43f89ee039db80c1"
+    },
+    {
+      "path": "test-results/api-wave-tests.txt",
+      "sha256": "3f00542a049d86c44acfccba4fda1748a97ef09a879a3f5f9cfcb155afc9590e"
+    },
+    {
+      "path": "test-results/ui-wave-validation-summary.json",
+      "sha256": "477949f16c180498ed25fee4cf1cc569e538151c7900cfea7607b77db653419a"
+    },
+    {
+      "path": "test-results/packaged-0.2.0-wave1/features-final/feature-report.json",
+      "sha256": "ff891519661af43d0307b2f72984f563af2c52c51860367efa96f6bdd4cbb949"
+    },
+    {
+      "path": "test-results/packaged-0.2.0-wave1/media/runtime-report.json",
+      "sha256": "ad339d36b9e02a67c111f5b6c9b879274d0765d6261384f89d9fa56842dfd395"
+    },
+    {
+      "path": "test-results/packaged-0.2.0-wave1/maya/maya-report.json",
+      "sha256": "36229aadab6c0f80c75082dc668185a26866143518391d267ffb7a524f09247e"
+    },
+    {
+      "path": "test-results/packaged-0.2.0-wave1/facade-report.json",
+      "sha256": "fceb96ba1fc8f43f68e67ff20b7ced84978429c39801819d8e149f25f8f880b1"
+    },
+    {
+      "path": "test-results/packaged-0.2.0-wave1/ffmpeg-policy.json",
+      "sha256": "15b9c01828999bd96a0b09fbcab3f1409c8960b19adf739a0ad446ed71db7c53"
+    },
+    {
+      "path": "test-results/packaged-0.2.0-wave1/loaded-modules.json",
+      "sha256": "a8db77eb09b8bb8b9c2cb3c9db4212cf96a0f190c8cecbc6d67d36966268ddc3"
+    },
+    {
+      "path": "test-results/packaged-0.2.0-wave1/cleanup.json",
+      "sha256": "1184ed8ea36520eb96a18bca0b15c411406dfa1babac61a29c78d8afa982bc04"
+    },
+    {
+      "path": "test-results/reference-sandbox/observation.json",
+      "sha256": "7af1524c2d33182da9990e0092cac5be518a545ededf18d6a0b69f14b6b3ff70"
+    },
+    {
+      "path": "test-results/reference-sandbox/payload-manifest.json",
+      "sha256": "86d05e93ebe709601d25f6ce52540b5f2cabdfd9076b552d0d20a9ae9ca8f71e"
+    }
+  ]
+}

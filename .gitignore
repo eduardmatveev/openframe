@@ -1,0 +1,24 @@
+/build*/
+/.deps/
+/.tools/
+/dist/*
+!/dist/*.zip
+/test-results/
+/.cache/
+__pycache__/
+*.pyc
+# IDE and local build state
+/.vs/
+/.idea/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+*.obj
+*.pdb
+*.ilk
+*.log
+*.tmp
+Thumbs.db
+.DS_Store
+/build.local.json

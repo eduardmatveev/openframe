@@ -1,0 +1,47 @@
+{
+  "qt": {
+    "version": "6.8.3",
+    "architecture": "win64_msvc2022_64",
+    "modules": [
+      "qtbase",
+      "qtsvg",
+      "qtmultimedia"
+    ],
+    "source": "https://download.qt.io/archive/qt/6.8/6.8.3/",
+    "installer": "aqtinstall==3.3.0"
+  },
+  "ffmpeg": {
+    "version": "7.1.5",
+    "source": "https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.xz",
+    "sha256": "de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f",
+    "configuration": [
+      "--toolchain=msvc",
+      "--arch=x86_64",
+      "--enable-shared",
+      "--disable-static",
+      "--disable-network",
+      "--disable-protocols",
+      "--enable-protocol=file,pipe",
+      "--disable-programs",
+      "--disable-doc",
+      "--disable-debug",
+      "--disable-avdevice",
+      "--disable-postproc",
+      "--disable-autodetect",
+      "--enable-mediafoundation",
+      "--enable-d3d11va",
+      "--enable-dxva2"
+    ]
+  },
+  "buildOnly": {
+    "msys2": {
+      "source": "https://repo.msys2.org/distrib/x86_64/msys2-base-x86_64-20260927.tar.xz",
+      "sha256": "ea2f31a0b6ade63914ce441ffb022f0f6aa96982bfefa2326460a26d5fb01322",
+      "packages": [
+        "make",
+        "nasm",
+        "diffutils"
+      ]
+    }
+  }
+}

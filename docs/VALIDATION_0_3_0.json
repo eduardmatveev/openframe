@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "applicationVersion": "0.3.0",
+  "recordedUtc": "2026-11-20T08:05:59.849730+00:00",
+  "referenceVersion": "1.7.1",
+  "comparativeParity": "UNVERIFIED",
+  "executableSha256": "5448500be6d7de41f0f337664e8b191b593198727e42c6ec787e8c85b2276950",
+  "adapterSha256": "8a8f5836a377460c6b6fa348e5ebd7775ab850bc647ecbdaf40d4aeb7969183c",
+  "packagedBinaryManifestCount": 38,
+  "packagedPythonModuleCount": 8,
+  "checks": {
+    "ctestSuites": 5,
+    "ctestPassed": 5,
+    "coreQtCases": 60,
+    "coreSkipped": 0,
+    "uiQtCases": 31,
+    "uiSkipped": 0,
+    "apiAssertions": 1448,
+    "pythonMayaTests": 38,
+    "newPackagedFeatureChecks": 27,
+    "packagedMediaChecks": 12,
+    "actualMayaGuiChecks": 38,
+    "actualMayaVersion": "2024",
+    "independentMayaFileChecks": 12,
+    "facadeChecks": 55,
+    "packagedRuntimeModules": 18,
+    "ffmpegNetworkDisabled": true,
+    "allOwnTestProcessesExited": true
+  },
+  "observations": [
+    "Actual Maya 2024 captured 24 and 257 PNG sequences as one source each, and AVI with and without audio.",
+    "Maya sound capture independently decoded: 48001 mono samples at48000 Hz, 439.9979 Hz, RMS0.1414; silent capture contains no audio stream.",
+    "First and last frames of both Maya sequences match BMP export RGB exactly after independent Windows decoding and the same opaque black background.",
+    "Maya sound empty-string argument caused cannot load sound file; omitted argument is verified on an active Time Slider sound node.",
+    "Positive source audio offset advances audio; plus/minus250ms pulse positions and export independence of playback direction/stretch pass.",
+    "Real AirPods44100 stereo Float negotiation and played rather than submitted Qt clock verified by core tests.",
+    "Initial failed test oracles retained: omitted1.75s expected pulse; straight RGB comparison across transparent PNG/opaque BMP.",
+    "FFmpeg cannot decode Maya2024 PNG EXIF in this corpus; unchanged originals decoded by Windows System.Drawing for independent pixel checks."
+  ],
+  "limitations": [
+    "Reference UI and pixel differential unavailable: computer-use host MXC HRESULT0x8007000F; full reference mode not established.",
+    "UI185 captures refer to intermediate EXE4F7DBE2DDAF415FB2FB710D04D60829ECA01977ADA37B76621D045BF735BDF3B; final CTest covers final binary separately.",
+    "Finite WSOLA at1/16 has measured output-length error325.7ms, approximately20.4ms source time; runtime maintains scheduled span. No reference DSP equivalence.",
+    "PCM/Qt/WASAPI timings are not physical Bluetooth/DAC acoustic latency; no full hotplug or multi-hour drift matrix.",
+    "Full process-tree ETW/WFP trace unavailable to current Windows token; local-only code/tests and custom FFmpeg policy are narrower evidence.",
+    "HDR/highbit, parallel image decoding, tablet/WinTab, rotated wipe and further matrix gaps remain. Closed project/wire formats unsupported.",
+    "Checkpoint applies only to recorded binary and Python hashes, not subsequent source changes."
+  ],
+  "evidence": [
+    {
+      "path": "test-results/package-0.3.0-wave2.log",
+      "sha256": "d644d3a6d14c9f7ecabd8299226f9c08e28af5e5f1559e0ca831dc24fd2688ab"
+    },
+    {
+      "path": "test-results/ctest-0.3.0-final.log",
+      "sha256": "95c375bc2b45b53f889a798465f1eee19e25fedca6ba16e2c377b06a12b44cad"
+    },
+    {
+      "path": "test-results/core-wave2-complete.txt",
+      "sha256": "48a8161b6e97b6bb82cf85efa449496c0df4b39f50f61e2f822aa6f4b799e757"
+    },
+    {
+      "path": "test-results/ui-wave3-final-tests.txt",
+      "sha256": "1ce3f84345c6af7df435449de13869c2e11168bf74e9d9858e6864c8d93f5dee"
+    },
+    {
+      "path": "test-results/api-wave2-tests.txt",
+      "sha256": "86461699c09886e0169743d5e1775b6f319e0b0036920f7a56009ac1a8381945"
+    },
+    {
+      "path": "test-results/python-maya-sound-regression.txt",
+      "sha256": "4eb80e5d539e29eb8cf34f7a3d7cbbc4b2645fcbb44358568111e5479a93452c"
+    },
+    {
+      "path": "test-results/ui-wave3-validation-summary.json",
+      "sha256": "f5537bdbe8f6ee5e1df23c3d24cd971985577b1698d5502fefe694522485e639"
+    },
+    {
+      "path": "test-results/maya-playblast-options-probe-20261120-105335/report.json",
+      "sha256": "d058ddec005ba441a595f2daa1de19656ac02cc66696bd2d43db47e441cacf27"
+    },
+    {
+      "path": "test-results/maya-playblast-sound-probe-20261120-105626/independent-validation.json",
+      "sha256": "464c9352aa4413603ae2480e7b7a65da7a9e2f4c2d4109280c5e63182ac5e8b2"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/features-final/feature-report.json",
+      "sha256": "c8713b4e293d0c2ea8b7b69964e67928ae3d1337fad62153a421f7027e37a2e4"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/media/runtime-report.json",
+      "sha256": "870252c93e6da48159a9451fee4a5003378b69ac982f01272994768856e838e1"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/maya-final/maya-report.json",
+      "sha256": "d8b5bbb31277ceaf8fc901f526517720f2e3aede9153600e706d9c8a62d66013"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/maya-files-opaque/capture-file-report.json",
+      "sha256": "454267b899fdcad569cb82affd1dc4b35545e632d31545b667392d8506af2362"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/facade-final-report.json",
+      "sha256": "125dd0626b9e17dc41063b03f7313a6a109d8e8b01e4adba8c76a73afcd9d551"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/ffmpeg-policy.json",
+      "sha256": "15b9c01828999bd96a0b09fbcab3f1409c8960b19adf739a0ad446ed71db7c53"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/loaded-modules-final.json",
+      "sha256": "af40f7e2ecc8a302d1833fb0140b33fa2a7db89fa209b25a5642e114f1b16efe"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/manifest-final-check.json",
+      "sha256": "47a1822f639d47fa842ec9fb5d83feb5fcda8bca7b510f59751412a03b31d1c9"
+    },
+    {
+      "path": "test-results/packaged-0.3.0-wave2/cleanup.json",
+      "sha256": "02cdff6d52a87cfbba6f08c0a604b2454a3197b28c9497897a9df98e9a003847"
+    },
+    {
+      "path": "dist/OpenFrame/build-info.json",
+      "sha256": "270cd126c54065fa1c9da68c25f9669ab572f46560f8d8c0519242e8ee1b4dcb"
+    }
+  ]
+}

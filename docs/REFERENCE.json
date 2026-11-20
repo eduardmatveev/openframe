@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "selectedByUser": "Installed Keyframe Pro 2 copy",
+  "recordedAtUtc": "2026-11-20T06:22:03.3293341Z",
+  "referenceRoot": "D:\\Work\\wws\\wws-unity\\Assets\\Content\\Animations\\~Misc~\\Maya\\Script\\Keyframe Pro 2",
+  "version": "1.7.1",
+  "versionEvidence": "ProductVersion from user-supplied MSI; installed EXE SHA-256 equals extracted MSI payload",
+  "installer": {
+    "path": "C:\\Users\\eduar\\Downloads\\KeyframePro2-1.7.1.msi",
+    "productVersion": "1.7.1",
+    "sha256": "839af2cacfc8bd1def08b1d79d9909d4dcf71d51de4fabf9c2af7c2ae4298e55"
+  },
+  "executable": {
+    "path": "bin/KeyframePro2.exe",
+    "bytes": 2681344,
+    "sha256": "9726893879bc5e44bc7169205ff909a0c72bd201a2c83eaeffc77f562cd53432",
+    "matchesMsiPayload": true,
+    "windowsVersionResourcePresent": false
+  },
+  "referenceReleaseNotes": "https://zurbrigg.com/keyframe-pro-2-documentation/kpro2-release-notes",
+  "scope": "Metadata and hashes only. No original implementation or reverse-analysis material provided to implementation agents.",
+  "fullModeAvailability": "Separate unchanged MSI copy reported window title Untitled (Demo) inside a verified AppContainer with zero capabilities; visual/differential checks blocked by UI automation host MXC HRESULT 0x8007000F",
+  "dependencyEquivalenceToMsi": "All 22 MSI payload files match installed counterparts by SHA-256, including Qt plugins and qt.conf; user configuration and licensing state are not covered",
+  "binaries": [
+    {
+      "path": "bin/avcodec-60.dll",
+      "bytes": 29841408,
+      "sha256": "fe31bfcf3995977673d2cfeb80e39510148fb1f32d89edffa8a2fb192d187f9e"
+    },
+    {
+      "path": "bin/avformat-60.dll",
+      "bytes": 4033024,
+      "sha256": "8e451bab4a92c7b60826afb425d96ccabff0910ff337917135adacaff220c966"
+    },
+    {
+      "path": "bin/avutil-58.dll",
+      "bytes": 2033152,
+      "sha256": "d7a49cbc5a1e2abdd24e9776603b12dacb77354cd45930e4f845efca357bb552"
+    },
+    {
+      "path": "bin/KeyframePro2.exe",
+      "bytes": 2681344,
+      "sha256": "9726893879bc5e44bc7169205ff909a0c72bd201a2c83eaeffc77f562cd53432"
+    },
+    {
+      "path": "bin/msvcp140_1.dll",
+      "bytes": 35952,
+      "sha256": "bfad5aef4c63a669e3c140655cdfdf395b6c979b400a447bd5dcb65ed8826c3d"
+    },
+    {
+      "path": "bin/msvcp140_2.dll",
+      "bytes": 280200,
+      "sha256": "3ea06f0ee098b4823cb79599df3780e7f23cce52c19aac31d2a0d47efe33a5e9"
+    },
+    {
+      "path": "bin/msvcp140.dll",
+      "bytes": 557728,
+      "sha256": "0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9"
+    },
+    {
+      "path": "bin/Qt6Core.dll",
+      "bytes": 10023136,
+      "sha256": "b6c6bedca4e798f9a6cfae20946688ab0a0c3dbd7de605951b0ffb7b679e4f53"
+    },
+    {
+      "path": "bin/Qt6Gui.dll",
+      "bytes": 9497312,
+      "sha256": "569f50c8fde5e3841197e4f44bc4673b330e2f8744391f36f0dccc17fc858f03"
+    },
+    {
+      "path": "bin/Qt6Multimedia.dll",
+      "bytes": 1111776,
+      "sha256": "65d136af4e5f64a3e5b6ba2136df6d2aa12dd8b39b7143514bebc34f33cba007"
+    },
+    {
+      "path": "bin/Qt6Network.dll",
+      "bytes": 1735392,
+      "sha256": "dcd4d0951de4f8a7d8609dd2f44cb32cc7fd507c7562b635346df2de6707374b"
+    },
+    {
+      "path": "bin/Qt6OpenGL.dll",
+      "bytes": 1972960,
+      "sha256": "2dbcc6b28480c186fd0c9f47b1987e85da3487861e1e0e76326b2cb68e183e81"
+    },
+    {
+      "path": "bin/Qt6OpenGLWidgets.dll",
+      "bytes": 64736,
+      "sha256": "3941a9753884ed0a035ed95a03a3b7f4fc12c6fe8f67fca3aa9b82a1aeaec632"
+    },
+    {
+      "path": "bin/Qt6Widgets.dll",
+      "bytes": 6540512,
+      "sha256": "36cfd5321d60623047f51bc9ce34333e1d090aca7a23b45e6c8a79f92d6a1aa6"
+    },
+    {
+      "path": "bin/rubberband-library.dll",
+      "bytes": 723456,
+      "sha256": "de21b7bda3441b11520553dc76614b541535b41b53a78a4ec1ce6e6ec3ed60cf"
+    },
+    {
+      "path": "bin/swresample-4.dll",
+      "bytes": 743424,
+      "sha256": "2fe7c1c432b3cc458a1f43dd652c3a6f45ff2ebbcc366a2619392e553422a099"
+    },
+    {
+      "path": "bin/swscale-7.dll",
+      "bytes": 1421312,
+      "sha256": "8c482f4cbbbef89f6d08b4aef2c875a2efda6b86359004105dbcce6a2b68b70a"
+    },
+    {
+      "path": "bin/vcruntime140_1.dll",
+      "bytes": 49792,
+      "sha256": "1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f"
+    },
+    {
+      "path": "bin/vcruntime140.dll",
+      "bytes": 124544,
+      "sha256": "d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066"
+    },
+    {
+      "path": "plugins/Qt/imageformats/qjpeg.dll",
+      "bytes": 576736,
+      "sha256": "43ca4ed440f9f03e79f75fd76905e3350ec4008650d02d7041fdd2ac4043dfd2"
+    },
+    {
+      "path": "plugins/Qt/platforms/qwindows.dll",
+      "bytes": 925920,
+      "sha256": "133983755958a0f4d955b4a6f3712a014ac62351ec5edd3c32b802094f66ac96"
+    }
+  ]
+}

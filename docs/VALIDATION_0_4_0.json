@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "applicationVersion": "0.4.0",
+  "recordedUtc": "2026-11-20T08:57:38.803812+00:00",
+  "referenceVersion": "1.7.1",
+  "comparativeParity": "UNVERIFIED",
+  "packageDirectory": "dist/OpenFrame-0.4.0",
+  "executableSha256": "5b7536889605ad0eb6aeeed47bdf2d8b48185856161cd1c324b240f1f0f354b4",
+  "clientSha256": "7cbfbd5850ce118e79b645fadaf098338548aa9367df2eeb2513b5d1374576ef",
+  "packagedBinaryManifestCount": 38,
+  "packagedPythonModuleCount": 8,
+  "stable03Preserved": true,
+  "checks": {
+    "ctestSuites": 6,
+    "ctestPassed": 6,
+    "packagedColorChecks": 55,
+    "packagedDrawingChecks": 14,
+    "packagedFeatureChecks": 27,
+    "packagedMediaChecks": 12,
+    "actualMayaGuiChecks": 38,
+    "independentMayaFileChecks": 12,
+    "coreQtCases": 60,
+    "colorQtCases": 22,
+    "uiQtCases": 40,
+    "apiAssertions": 1800,
+    "pythonMayaTests": 48,
+    "facadeChecks": 55,
+    "packagedRuntimeModules": 18,
+    "ffmpegNetworkDisabled": true,
+    "allOwnTestProcessesExited": true
+  },
+  "performance": {
+    "scope": "10 compositions at 1920x1080, warm native cache; conversion, composition and quantization, not cold decode or acoustic timing",
+    "sdrMeanMs": 35.852,
+    "sdrMaxMs": 43.0858,
+    "pqToSdrMeanMs": 137.989,
+    "pqToSdrMaxMs": 145.698,
+    "hdrRealtime24Fps": false,
+    "evidence": "test-results/core-wave4-color.txt"
+  },
+  "observations": [
+    "All 24 native frames in each of six SDR/PQ/HLG 10/12-bit ramps match the independent fixture byte-for-byte.",
+    "SDR PNG16 contains every exactly normalized code; HDR display image and video match and carry SDR metadata.",
+    "Real Maya2024 sync/capture and independent AVI audio/PNG boundary pixel checks pass on this packaged client.",
+    "WH-1000XM6 at48000Hz targeted transport tests pass with0-1 current/rendered frame difference; not acoustic latency.",
+    "UI132 captures precede final core/export-binding changes; intermediate binary identities are recorded in UI summary. Final binary passes common CTest.",
+    "Separate0.3.0 package remains unchanged. All owned test processes and endpoint are cleaned."
+  ],
+  "limitations": [
+    "No comparative reference UI/behavior/pixel acceptance. Computer-use host fails with MXC0x8007000F; full reference mode not established.",
+    "HDR CPU conversion does not achieve24fps at1080p. SDR measurement also does not guarantee throughput for every codec.",
+    "Tone mapping is independent:1000nit default peak with explicit clipping; no reference curve equivalence.",
+    "No physical tablet validation. WinTab unavailable on this machine; failure and WindowsInk preservation verified.",
+    "Closed project/wire compatibility unsupported; no original saved-project fixture supplied.",
+    "Current Maya Playblast UI preferences snapshot, Maya2026 WebM, multi-hour audio/device hotplug and physical mixed-DPI checks remain.",
+    "Finite WSOLA length and physical audio latency limitations from0.3.0 remain.",
+    "Full process-tree ETW/WFP TCP/UDP/DNS tracing unavailable to current token; localhost API/code and FFmpeg policy are narrower evidence.",
+    "Results apply to the recorded package hashes, not subsequent source changes."
+  ],
+  "evidence": [
+    {
+      "path": "test-results/package-0.4.0-final.log",
+      "sha256": "81862884efe2a8286813d0204002a65f78fb2c36b15dc2fdfb10e7e2abde8873"
+    },
+    {
+      "path": "test-results/core-wave4-complete.txt",
+      "sha256": "728ed719bc78fedaccc73161645a9567ae8ebd6df439b592e38579fa285a7124"
+    },
+    {
+      "path": "test-results/core-wave4-color.txt",
+      "sha256": "0415d038bbbc9606e01d21fa9b9737a58b59ae9b28d358d4f115725e4f1b6077"
+    },
+    {
+      "path": "test-results/core-wave4-targeted.txt",
+      "sha256": "93bf650e20b0b6496a42fea134da4ba6350d966865595ef7b8ec2d45fcb0eaf7"
+    },
+    {
+      "path": "test-results/core-wave4-first-regression.txt",
+      "sha256": "c9459e431ca5d486f9f8b9096b67a1f08ade06fff7ff4516519473c2c8253d9c"
+    },
+    {
+      "path": "test-results/ui-wave4-validation-summary.json",
+      "sha256": "0d1664b2270b90319a1bef7dcbd42f0c11de785a69d299f0b5bc06fafe512169"
+    },
+    {
+      "path": "test-results/ui-wave4-final-tests.txt",
+      "sha256": "21df0fa299ff1c1c4310c8730ba06fb11704760c9ccdce865cf89af1954507f0"
+    },
+    {
+      "path": "test-results/ui-wave4-binding-tests.txt",
+      "sha256": "976f744e149144e8a1594ec16d93048936e4f814e89600d1a1efe1a5895fc6d6"
+    },
+    {
+      "path": "test-results/python-04-timeouts.txt",
+      "sha256": "13c70379c45f9ddd0023d3ad2927b5ae41d0a46414bcce4b4cf226b3e4692e41"
+    },
+    {
+      "path": "test-results/api-04-tests-final.txt",
+      "sha256": "83f006bb29a2d9c52aa5f7beb2c6683d97e075eb90c1e0d694321945bb804e67"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/ctest-detail.log",
+      "sha256": "b55072e328a17f0f67ed114b29a376c357f935483eb6e2509276143ec510baae"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/own-instance.json",
+      "sha256": "f52834e5d9fef33ae3cb73c6e27f98014dd79c0fade542543c9ab57b1874df11"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/color/color-runtime-report.json",
+      "sha256": "2c52d66c95ef2748ad89b351920e04077be8519b2cfd259e202861fbe58981c4"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/drawing/drawing-runtime-report.json",
+      "sha256": "3b8e35fcf798f82a26c53497351b432885faf179202e79cff2bb5788948eaed0"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/features/feature-report.json",
+      "sha256": "c759a6341efede3a63223fc28f43e7f60497acfc87ad0b6af34c16d50ae3f92a"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/media/runtime-report.json",
+      "sha256": "c7cec8e99b08b96d964c8188a34d106c5fae72494bc5d113f33b74e4ad0a6fd8"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/maya/maya-report.json",
+      "sha256": "1657a075bff08050a0c7317854c1584572de01463b075a797b72d8eb1e6d5023"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/maya-files/capture-file-report.json",
+      "sha256": "f49ffd38544f231959699d461ccda8cda19083290c90e9f8baf1c9abff36d047"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/facade-report.json",
+      "sha256": "10bc89f749dd2a0f345167b271c98cee8d6ef34eabca2d04ab90a8517effedd6"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/loaded-modules.json",
+      "sha256": "2e9bcd80faa211f79060b2cde81b3976906749029bbb1f8fd59e330ce093da78"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/ffmpeg-policy.json",
+      "sha256": "e20f2ef5243d6029fd52d2c9bb5f52d2c3e533ba158e8b6709fda916c6904246"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/manifest-check.json",
+      "sha256": "e17c493eb4b01d3b45d41aa425de770d1eb2a32efdb363b7949625ccfd5f57a7"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/stable-version-check.json",
+      "sha256": "9b58556f049dccb247e0c65f9413615805b137a5a9c2a172558cf5ce3a2314e2"
+    },
+    {
+      "path": "test-results/packaged-0.4.0-final/cleanup.json",
+      "sha256": "44488a7c2b33455012e40e4e6a3ce1e55c9c5fb606bb58c903770c625882b3cd"
+    }
+  ]
+}

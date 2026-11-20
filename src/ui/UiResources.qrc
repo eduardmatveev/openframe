@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="/openframe">
+    <file alias="arrow-down.svg">../../resources/arrows/down.svg</file>
+    <file alias="arrow-up.svg">../../resources/arrows/up.svg</file>
+    <file alias="arrow-down-disabled.svg">../../resources/arrows/down-disabled.svg</file>
+    <file alias="arrow-up-disabled.svg">../../resources/arrows/up-disabled.svg</file>
+  </qresource>
+</RCC>
