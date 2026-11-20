@@ -151,11 +151,51 @@ QIcon uiIcon(const QString &name, const QColor &color) {
         line(10, 3, 10, 17);
         line(3, 10, 17, 10);
     } else if (name == "split") {
-        p.drawRect(QRectF(3, 4, 14, 12));
-        line(10, 4, 10, 16);
+        p.drawRect(QRectF(2, 4, 6, 12));
+        p.drawRect(QRectF(12, 4, 6, 12));
+    } else if (name == "splitVertical") {
+        p.drawRect(QRectF(2, 3, 16, 5));
+        p.drawRect(QRectF(2, 12, 16, 5));
+    } else if (name == "wipe") {
+        const QRectF frame(2, 3.5, 16, 13);
+        const QLineF divider(13.5, frame.top(), 6.5, frame.bottom());
+        QPainterPath left(frame.topLeft());
+        left.lineTo(divider.p1());
+        left.lineTo(divider.p2());
+        left.lineTo(frame.bottomLeft());
+        left.closeSubpath();
+        auto shade = color;
+        shade.setAlphaF(color.alphaF() * .35f);
+        p.fillPath(left, shade);
+        p.drawRect(frame);
+        p.setPen(QPen(color, 1.8, Qt::SolidLine, Qt::FlatCap));
+        p.drawLine(divider);
+    } else if (name == "blend") {
+        const QRectF back(2, 3, 11, 9);
+        const QRectF front(7, 8, 11, 9);
+        auto shade = color;
+        shade.setAlphaF(color.alphaF() * .4f);
+        p.fillRect(front.intersected(back), shade);
+        p.drawRect(back);
+        p.drawRect(front);
+    } else if (name == "single" || name == "singleB") {
+        p.drawRect(QRectF(2.5, 2.5, 15, 15));
+        QFont font("Segoe UI");
+        font.setPixelSize(12);
+        font.setWeight(QFont::DemiBold);
+        p.setFont(font);
+        p.drawText(QRectF(2, 2, 16, 16), Qt::AlignCenter, name == "single" ? "A" : "B");
     } else if (name == "ab") {
-        p.setFont(QFont("Segoe UI", 9, QFont::DemiBold));
-        p.drawText(QRectF(0, 0, 20, 20), Qt::AlignCenter, "A/B");
+        p.drawRect(QRectF(2, 3.5, 16, 13));
+        p.setBrush(color);
+        p.drawEllipse(QPointF(10, 10), 2, 2);
+    } else if (name == "swap") {
+        line(3, 6.5, 16.5, 6.5);
+        line(13, 3, 16.5, 6.5);
+        line(16.5, 6.5, 13, 10);
+        line(17, 13.5, 3.5, 13.5);
+        line(7, 10, 3.5, 13.5);
+        line(3.5, 13.5, 7, 17);
     } else if (name == "zoom") {
         p.drawEllipse(QRectF(3, 3, 10, 10));
         line(12, 12, 17, 17);

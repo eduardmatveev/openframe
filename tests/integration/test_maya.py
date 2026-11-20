@@ -14,7 +14,9 @@ from unittest import mock
 sys.path.insert(0, os.environ.get("OPENFRAME_TEST_MAYA_PATH", str(Path(__file__).resolve().parents[2] / "maya")))
 from openframe_maya import Adapter, Client, OpenFrameError, SyncMapping, CaptureSettings, CaptureResult, TimelineSound
 from openframe_maya.adapter import MayaHost
-from openframe_maya.client import _read_endpoint, discover_endpoints
+from openframe_maya.compatibility import KeyframePro2ClientApi
+from openframe_maya.client import EndpointUnavailable, InstanceSelectionRequired, _read_endpoint, discover_endpoints
+from openframe_maya import ui
 from openframe_maya.paths import local_path, PathPolicyError
 
 
@@ -108,9 +110,9 @@ class FakeMaya:
 
 class FakeApi:
     """Test fixture serving the real framing/auth contract over exact loopback."""
-    def __init__(self, directory):
+    def __init__(self, directory, instance="synthetic-instance", endpoint_name="endpoint-synthetic.json"):
         self.token = "ab" * 32
-        self.instance = "synthetic-instance"
+        self.instance = instance
         self.frame = 0
         self.range_start, self.range_end = 0, 99
         self.revision = 0
@@ -132,7 +134,7 @@ class FakeApi:
         self.server.bind(("127.0.0.1", 0))
         self.server.listen(8)
         self.server.settimeout(0.1)
-        self.path = str(Path(directory) / "endpoint-synthetic.json")
+        self.path = str(Path(directory) / endpoint_name)
         self.endpoint = {"api": 1, "host": "127.0.0.1", "port": self.server.getsockname()[1],
                          "token": self.token, "pid": os.getpid(), "instance": self.instance}
         with open(self.path, "w", encoding="utf-8") as output:
@@ -299,6 +301,85 @@ class FakeApi:
             thread.join(1)
 
 
+class WindowSettingsTests(unittest.TestCase):
+    def test_round_trip_all_settings_and_ignore_session_secrets(self):
+        values = dict(ui._DEFAULTS, viewer="B", format="bmp", width=1280, height=720, quality=47,
+                      percent=60, padding=8, ornaments=True, offscreen=False, include_audio=False,
+                      timecode=False, direction="bidirectional", offset=-1.5, multiplier=-2.25,
+                      from_range=True, timeout=2.5, display_offset=-20, tab="Sync", advanced=True,
+                      geometry=[-480, 100, 480, 360], audio={"scene": "scene", "node": "sound", "uuid": "node-id"})
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "window.json"
+            ui.save_settings(path, dict(values, token="private-test-value", endpoint="session-path"))
+            self.assertEqual(ui.load_settings(path), values)
+            self.assertNotIn("token", json.loads(path.read_text(encoding="utf-8")))
+            self.assertNotIn("endpoint", json.loads(path.read_text(encoding="utf-8")))
+
+    def test_invalid_fields_are_independent_and_unknown_versions_use_defaults(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "window.json"
+            for raw in ("", "[]", "{", '{"version":true,"width":1280}', '{"version":9,"viewer":"B"}'):
+                path.write_text(raw)
+                self.assertEqual(ui.load_settings(path), ui._DEFAULTS)
+            path.write_text(json.dumps({"version": 1, "width": 11, "height": 720, "timeout": True,
+                                        "offset": "4", "multiplier": 0, "viewer": "X", "format": "png",
+                                        "geometry": [1, 2, -4, 5], "audio": {"node": "a"}, "offscreen": 1}))
+            self.assertEqual(ui.load_settings(path), dict(ui._DEFAULTS, height=720, format="png"))
+
+    def test_deleted_window_stops_timers_and_worker_and_flushes_once(self):
+        window = ui.Window.__new__(ui.Window)
+        window.window = "openFrameMayaAdapterWindow"
+        window._closed, window._ready, window._dirty = False, True, True
+        window.cmds, window.widgets = mock.Mock(), mock.Mock()
+        window.cmds.window.return_value = False
+        window.timer, window.save_timer = mock.Mock(), mock.Mock()
+        window.settings_path, window.values = "unused.json", dict(ui._DEFAULTS)
+        worker = window.adapter = mock.Mock()
+        with mock.patch.object(ui, "save_settings") as save:
+            window.refresh()
+            window.close()
+            save.assert_called_once_with(window.settings_path, window.values)
+        worker.stop.assert_called_once()
+        window.timer.stop.assert_called_once()
+        window.save_timer.stop.assert_called_once()
+        self.assertIsNone(window.adapter)
+        self.assertTrue(window._closed)
+
+    def test_write_failure_preserves_previous_file_and_only_warns_in_window(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "window.json"
+            ui.save_settings(path, dict(ui._DEFAULTS, viewer="B"))
+            window = ui.Window.__new__(ui.Window)
+            window._closed, window._dirty = True, True
+            window.cmds, window.save_timer = mock.Mock(), mock.Mock()
+            window.values, window.settings_path = dict(ui._DEFAULTS), path
+            with mock.patch.object(os, "replace", side_effect=PermissionError("Read only")):
+                window.flush()
+            self.assertTrue(window._dirty)
+            window.cmds.warning.assert_called_once()
+            self.assertEqual(ui.load_settings(path)["viewer"], "B")
+            self.assertEqual(list(Path(directory).iterdir()), [path])
+
+
+class ViewerLayoutTests(unittest.TestCase):
+    def test_window_and_client_name_layouts_by_pane_arrangement(self):
+        window = ui.Window.__new__(ui.Window)
+        window.adapter = mock.Mock(state={"connected": True})
+        client = KeyframePro2ClientApi()
+        client.client = mock.Mock()
+        for layout, mode, vertical_divider in (("horizontal", "split", True),
+                                                ("vertical", "split", False),
+                                                ("single", "single", False),
+                                                ("single_b", "single_b", False),
+                                                ("active", "active", False)):
+            with self.subTest(layout=layout):
+                window.layout(layout)
+                client.set_viewer_layout(layout)
+                expected = {"mode": mode, "splitVertical": vertical_divider}
+                window.adapter.request.assert_called_with("viewer.set", **expected)
+                client.client.call.assert_called_with("viewer.set", **expected)
+
+
 class MappingTests(unittest.TestCase):
     def test_mapping_and_inverse(self):
         for offset in (-100, 0, 7.5):
@@ -410,6 +491,29 @@ class ClientTests(unittest.TestCase):
         with mock.patch("socket.socket", side_effect=AssertionError("Ambiguous reconnect created socket")):
             with self.assertRaises(OpenFrameError):
                 Client(selected).connect()
+
+    def test_automatic_selection_ignores_stale_files_and_authenticates_before_selecting(self):
+        stale = Path(self.directory.name) / "endpoint-stale.json"
+        stale.write_text(json.dumps(dict(self.server.endpoint, token="cd" * 32)))
+        os.chmod(stale, 0o600)
+        with mock.patch("openframe_maya.client.endpoint_directory", return_value=self.directory.name):
+            with Client(strict_selection=True) as client:
+                self.assertEqual(client.endpoint_path, self.server.path)
+            other = FakeApi(self.directory.name, "second", "endpoint-other.json")
+            try:
+                with self.assertRaises(InstanceSelectionRequired):
+                    Client(strict_selection=True).connect()
+                with Client(strict_selection=True, preferred_instance=other.instance) as client:
+                    self.assertEqual(client.instance_id, other.instance)
+                self.assertTrue(all(method == "status" for method, _ in self.server.calls + other.calls))
+            finally:
+                other.close()
+
+    def test_explicit_strict_selection_never_substitutes_another_instance(self):
+        missing = str(Path(self.directory.name) / "endpoint-missing.json")
+        with self.assertRaises(EndpointUnavailable):
+            Client(missing, strict_selection=True).connect()
+        self.assertEqual(self.server.calls, [])
 
     def test_null_id_protocol_error_is_reported_and_closes_connection(self):
         with Client(self.server.path) as client:
@@ -602,6 +706,30 @@ class CaptureBoundaryTests(unittest.TestCase):
             with self.assertRaises(PathPolicyError):
                 host.sound_snapshot()
 
+    def test_explicit_sound_without_active_slider_and_capture_switches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "own.wav")
+            Path(path).write_bytes(b"Synthetic path validation fixture")
+            host = MayaHost.__new__(MayaHost)
+            host.cmds = mock.Mock()
+            host.cmds.lsUI.return_value = []
+            host.cmds.objExists.return_value = True
+            host.cmds.nodeType.return_value = "audio"
+            values = {"file": path, "offset": 1., "sourceStart": 0., "sourceEnd": 24.,
+                      "endTime": 25., "mute": False}
+            host.cmds.sound.side_effect = lambda node, **kw: next(values[k] for k in values if kw.get(k))
+            self.assertIsNone(host.sound_snapshot())
+            sound = host.sound_snapshot("chosenAudio")
+            self.assertEqual(sound.node, "chosenAudio")
+            host.capture("own.avi", 1, 24, CaptureSettings(), sound)
+            self.assertEqual(host.cmds.playblast.call_args.kwargs["sound"], "chosenAudio")
+            for settings in (CaptureSettings(include_sound=False), CaptureSettings(format_name="image")):
+                host.capture("own", 1, 24, settings, sound)
+                self.assertNotIn("sound", host.cmds.playblast.call_args.kwargs)
+            host.cmds.objExists.return_value = False
+            with self.assertRaises(OpenFrameError):
+                host.sound_snapshot("deletedAudio")
+
     def test_frame_rate_uses_mtime_and_retains_fractional_rate(self):
         host = MayaHost.__new__(MayaHost)
         host.api = mock.Mock()
@@ -702,6 +830,44 @@ class AdapterTests(unittest.TestCase):
         adapter.request("echo", callback=lambda result, error: results.append(result), text="new-result")
         self.wait(lambda: results)
         self.assertEqual(results, ["new-result"])
+
+    def test_automatic_adapter_waits_for_launch_and_pins_authenticated_identity_until_next_connect(self):
+        with mock.patch("openframe_maya.client.endpoint_directory", return_value=self.directory.name):
+            old_path = Path(self.server.path)
+            old_path.unlink()
+            host = FakeMaya()
+            self.hosts.append(host)
+            adapter = Adapter(host=host, pin_instance=True, timeout=.3)
+            self.adapters.append(adapter)
+            adapter.start("off")
+            self.wait(lambda: adapter.state["phase"] == "waiting")
+            old_path.write_text(json.dumps(self.server.endpoint))
+            os.chmod(old_path, 0o600)
+            self.wait(lambda: adapter.state["connected"])
+            self.assertEqual(adapter.state["instance"], self.server.instance)
+            other = FakeApi(self.directory.name, "another", "endpoint-restarted.json")
+            try:
+                self.server.drop_connections()
+                old_path.unlink()
+                self.wait(lambda: adapter.state["phase"] == "waiting")
+                self.assertFalse(other.sessions)
+                # Reusing the old filename for another process must not move the Maya session either.
+                old_path.write_text(json.dumps(other.endpoint))
+                os.chmod(old_path, 0o600)
+                self.wait(lambda: adapter.state["phase"] == "selection")
+                self.assertFalse(other.sessions)
+                adapter.stop()
+                host.pump()
+                self.assertFalse(host.callbacks)
+                replacement = Adapter(host=host, pin_instance=True, timeout=.5).start("off")
+                self.adapters.append(replacement)
+                self.wait(lambda: replacement.state["connected"])
+                self.assertEqual(replacement.state["instance"], other.instance)
+                self.assertEqual(len(host.callbacks), 1)
+                replacement.stop()
+                self.assertFalse(host.callbacks)
+            finally:
+                other.close()
 
     def test_disabled_start_preserves_scene_time(self):
         adapter, host = self.create_adapter("off")

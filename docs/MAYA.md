@@ -4,7 +4,9 @@
 
 ## Запуск
 
-Запустите OpenFrame. В Python-вкладке Script Editor добавьте каталог `OpenFrame/maya` в `sys.path` для текущей сессии и вызовите:
+Для установки полки **OpenFrame** перетащите `maya/Install.mel` из распакованного комплекта в окно просмотра Maya. Кнопка с треугольником запускает проигрыватель, кнопка с ромбом открывает адаптер.
+
+Для запуска из Script Editor запустите OpenFrame. В Python-вкладке Script Editor добавьте каталог `OpenFrame/maya` в `sys.path` для текущей сессии и вызовите:
 
 ```python
 import sys

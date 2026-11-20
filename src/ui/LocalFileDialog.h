@@ -6,8 +6,9 @@ class QLabel;
 class QLineEdit;
 class QTreeWidget;
 namespace openframe {
-// Filesystem navigation is checked before enumeration. No native shell dialogs,
-// QFileSystemModel, network locations, thumbnails or shell icon providers.
+// Windows uses standard native shell dialogs. Their browsing/thumbnail activity
+// is controlled by Windows; OpenFrame validates every returned path before use.
+// Offscreen and explicitly non-native QA use the guarded local-only fallback.
 class LocalFileDialog final : public QDialog {
   public:
     static QStringList localFiles(const QString &directory, const QStringList &patterns);

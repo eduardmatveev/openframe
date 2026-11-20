@@ -69,6 +69,13 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#ifdef Q_OS_WIN
+#include <QtCore/qt_windows.h>
+#include <shlobj.h>
+#else
+#include <QDesktopServices>
+#include <QUrl>
+#endif
 namespace openframe {
 namespace {
 constexpr int IdRole = Qt::UserRole + 1, KindRole = Qt::UserRole + 2;
@@ -183,7 +190,8 @@ MainWindow::MainWindow(ReviewSession *session, ApiServer *server, QWidget *paren
             m_exportProgress->setValue(value);
     });
     connect(session, &ReviewSession::exportFinished, this,
-            [this](bool success, const QString &message) {
+            [this](bool success, const QString &message, const QString &publishedFile) {
+                const bool fromExportDialog = !m_exportProgress.isNull();
                 if (m_exportProgress) {
                     m_exportProgress->close();
                     m_exportProgress->deleteLater();
@@ -192,6 +200,8 @@ MainWindow::MainWindow(ReviewSession *session, ApiServer *server, QWidget *paren
                 if (success) {
                     statusBar()->showMessage(message, 15000);
                     log(message);
+                    if (fromExportDialog)
+                        revealExportedFile(publishedFile);
                 } else
                     showError(message);
             });
@@ -643,27 +653,25 @@ void MainWindow::createMenus() {
         const char *id;
         const char *label;
         ViewerMode mode;
+        bool sideBySide = false;
     };
     for (auto item : {ModeItem{"single", "Single A", ViewerMode::Single},
-                      {"ab", "A/B", ViewerMode::AB},
+                      {"singleB", "Single B", ViewerMode::SingleB},
+                      {"ab", "Active", ViewerMode::AB},
                       {"wipe", "Wipe", ViewerMode::Wipe},
                       {"blend", "Transparency", ViewerMode::Blend},
-                      {"split", "Horizontal", ViewerMode::Split},
+                      {"split", "Horizontal", ViewerMode::Split, true},
+                      {"splitVertical", "Vertical", ViewerMode::Split},
                       {"grid", "Grid", ViewerMode::Grid}})
         modes->addAction(a(item.id, item.label, item.id, {}, [this, item] {
             changeViewer([=](ViewerSettings &v) {
                 v.mode = item.mode;
-                v.splitVertical = false;
+                // The saved flag names the divider, which is vertical for side-by-side panes.
+                v.splitVertical = item.sideBySide;
             });
         }));
-    modes->addAction(a("splitVertical", "Vertical", "split", {}, [this] {
-        changeViewer([](ViewerSettings &v) {
-            v.mode = ViewerMode::Split;
-            v.splitVertical = true;
-        });
-    }));
     modes->addAction(
-        a("swapViewers", "Swap Timelines A/B", "ab", {QKeySequence("Ctrl+Tab")}, [this] {
+        a("swapViewers", "Swap Timelines A/B", "swap", {QKeySequence("Ctrl+Tab")}, [this] {
             changeViewer([](ViewerSettings &v) {
                 while (v.assignments.size() < 2)
                     v.assignments.append(QString{});
@@ -787,18 +795,20 @@ void MainWindow::createMenus() {
         }));
     video->addAction(a("rotateCW", "Rotate CW", "rotate", {}, [this] {
         changeViewer([](ViewerSettings &v) {
-            v.transforms[v.activePane].rotation = (v.transforms[v.activePane].rotation + 90) % 360;
+            auto &rotation = v.transforms[activeViewerPane(v)].rotation;
+            rotation = (rotation + 90) % 360;
         });
     }));
     video->addAction(a("rotateCCW", "Rotate CCW", "", {}, [this] {
         changeViewer([](ViewerSettings &v) {
-            v.transforms[v.activePane].rotation = (v.transforms[v.activePane].rotation + 270) % 360;
+            auto &rotation = v.transforms[activeViewerPane(v)].rotation;
+            rotation = (rotation + 270) % 360;
         });
     }));
     for (auto key : {QString("Horizontal"), QString("Vertical")})
         video->addAction(a("flip" + key, "Flip " + key, "", {}, [this, key] {
             changeViewer([=](ViewerSettings &v) {
-                auto &t = v.transforms[v.activePane];
+                auto &t = v.transforms[activeViewerPane(v)];
                 if (key == "Horizontal")
                     t.flipHorizontal = !t.flipHorizontal;
                 else
@@ -856,8 +866,8 @@ void MainWindow::createMenus() {
     notes->addAction(a("exportNotes", "Export CSV…", "", {}, [this] {
         auto path =
             LocalFileDialog::getSaveFileName(this, "Export notes", "notes.csv", "CSV (*.csv)");
-        if (!path.isEmpty())
-            m_session->saveNotesCsv(path);
+        if (!path.isEmpty() && m_session->saveNotesCsv(path))
+            revealExportedFile(path);
     }));
     auto tools = menuBar()->addMenu("&Tools");
     for (auto dock : {m_projectDock, m_detailsDock, m_notesDock, m_consoleDock}) {
@@ -1229,20 +1239,44 @@ void MainWindow::createToolbars() {
                 });
     }
     m_viewerBar->addSeparator();
-    for (auto key : {"single", "ab", "wipe", "blend", "split", "grid", "swapViewers"})
+    for (auto key : {"single", "singleB", "ab", "wipe", "blend", "split", "splitVertical",
+                     "grid", "swapViewers"})
         m_viewerBar->addAction(m_actions[key]);
     m_mix = new QSlider(Qt::Horizontal, m_viewerBar);
+    m_mix->setObjectName("comparisonMix");
+    m_mix->setTracking(true);
     m_mix->setRange(0, 100);
     m_mix->setValue(50);
     m_mix->setMaximumWidth(80);
     m_mix->setToolTip("Wipe position / transparency");
     m_viewerBar->addWidget(m_mix);
-    connect(m_mix, &QSlider::valueChanged, this, [this](int v) {
-        if (!m_refreshing)
-            changeViewer([v](ViewerSettings &s) {
-                s.wipe = v / 100.0;
-                s.opacity = v / 100.0;
-            });
+    connect(m_mix, &QSlider::sliderPressed, this, [this] {
+        m_mixPreviewToken = m_session->beginViewerPreview();
+    });
+    connect(m_mix, &QSlider::valueChanged, this, [this](int value) {
+        if (m_refreshing || !m_mix->isEnabled())
+            return;
+        if (m_mix->isSliderDown()) {
+            m_session->previewComparisonMix(m_mixPreviewToken, value / 100.0);
+            return;
+        }
+        changeViewer([value](ViewerSettings &v) {
+            if (v.mode == ViewerMode::Blend)
+                v.opacity = value / 100.0;
+            else if (v.mode == ViewerMode::Wipe)
+                v.wipe = value / 100.0;
+        });
+    });
+    connect(m_mix, &QSlider::sliderReleased, this, [this] {
+        const auto token = m_mixPreviewToken;
+        m_mixPreviewToken = 0;
+        const auto &saved = m_session->project().viewer;
+        const auto preview = m_session->displayedViewerSettings();
+        if (saved.wipe == preview.wipe && saved.opacity == preview.opacity)
+            m_session->clearViewerPreview(token);
+        else
+            m_session->commitViewerPreview(token, saved.mode == ViewerMode::Blend
+                                                      ? "Adjust transparency" : "Adjust wipe");
     });
     m_viewerBar->addSeparator();
     m_viewerBar->addAction(m_actions["resetView"]);
@@ -1609,8 +1643,8 @@ void MainWindow::refreshProject() {
     m_actions["holdAnnotations"]->setChecked(p.viewer.holdAnnotations);
     m_actions["mediaInfo"]->setChecked(p.viewer.showOverlay);
     m_actions["pictureType"]->setChecked(p.viewer.showPictureType);
-    m_mix->setValue(
-        int((p.viewer.mode == ViewerMode::Blend ? p.viewer.opacity : p.viewer.wipe) * 100));
+    m_mix->setEnabled(p.viewer.mode == ViewerMode::Blend || p.viewer.mode == ViewerMode::Wipe);
+    m_mix->setValue(qRound((p.viewer.mode == ViewerMode::Blend ? p.viewer.opacity : p.viewer.wipe) * 100));
     const QStringList overlayKeys{"Off",     "Safe",   "Grid", "Center", "DynamicSymmetry",
                                   "PhiGrid", "Custom", "Image"};
     for (int i = 0; i < overlayKeys.size(); ++i)
@@ -3067,6 +3101,8 @@ void MainWindow::exportDialog() {
     preferences.setValue("export/includeAnnotations", annotations->isChecked());
     preferences.setValue("export/whole", whole->isChecked());
     preferences.setValue("export/forceOverwrite", forceOverwrite->isChecked());
+    if (!m_session->exportAsync(settings))
+        return;
     m_exportProgress = new QProgressDialog("Rendering frames and audio…", "Cancel", 0, 100, this);
     m_exportProgress->setWindowTitle("Export");
     m_exportProgress->setWindowModality(Qt::WindowModal);
@@ -3075,7 +3111,35 @@ void MainWindow::exportDialog() {
     m_exportProgress->setAutoReset(false);
     connect(m_exportProgress, &QProgressDialog::canceled, m_session, &ReviewSession::cancelExport);
     m_exportProgress->show();
-    m_session->exportAsync(settings);
+}
+void MainWindow::revealExportedFile(const QString &path) {
+    const auto platform = QApplication::platformName();
+    if (m_smokeMode || platform == "offscreen" || platform == "minimal")
+        return;
+
+    const QFileInfo file(path);
+#ifdef Q_OS_WIN
+    const auto nativePath = QDir::toNativeSeparators(file.absoluteFilePath()).toStdWString();
+    const HRESULT initialized = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    bool revealed = false;
+    if (SUCCEEDED(initialized) || initialized == RPC_E_CHANGED_MODE) {
+        PIDLIST_ABSOLUTE item = nullptr;
+        if (SUCCEEDED(SHParseDisplayName(nativePath.c_str(), nullptr, &item, 0, nullptr))) {
+            revealed = SUCCEEDED(SHOpenFolderAndSelectItems(item, 0, nullptr, 0));
+            CoTaskMemFree(item);
+        }
+        if (SUCCEEDED(initialized))
+            CoUninitialize();
+    }
+#else
+    const bool revealed = QDesktopServices::openUrl(QUrl::fromLocalFile(file.absolutePath()));
+#endif
+    if (!revealed) {
+        const auto message = tr("File saved. Could not show it in its folder: %1")
+                                 .arg(QDir::toNativeSeparators(file.absoluteFilePath()));
+        statusBar()->showMessage(message, 15000);
+        log(message);
+    }
 }
 void MainWindow::projectSettingsDialog() {
     const auto &p = m_session->project();
@@ -3701,9 +3765,11 @@ void MainWindow::documentationDialog() {
         "horizontally in the viewer to scrub. Drag the gold handles on the time control to adjust "
         "the playback range. <b>I/O</b> set the range at the current "
         "frame.</p><h3>Viewer</h3><p><b>Ctrl+wheel</b> zooms. <b>Ctrl+middle drag</b> pans. "
-        "Double-click fits the viewer. Choose A/B, wipe, transparency, horizontal/vertical split "
-        "or grid from Video → Layout. The blend slider adjusts wipe or transparency. <b>Drag the "
-        "divider</b> moves a wipe. Drag the round handle to rotate and the pivot to reposition. "
+        "Double-click fits the viewer. In Video → Layout, Single A and Single B show a fixed "
+        "slot. Active follows the selected slot. Horizontal places A and B side by side, and "
+        "Vertical stacks A above B. Use the slider in Transparency to blend the two images, "
+        "or in Wipe to move the divider. You can also <b>drag the divider</b> directly. "
+        "Drag the round handle to rotate and the pivot to reposition. "
         "Ctrl temporarily disables center/right-angle snapping; Alt allows wipe edits with "
         "annotation tools open. Video → Wipe offers exact values and reset. HDR / Display Color "
         "controls the display conversion; export color encoding and bit depth are independent "
@@ -4255,11 +4321,18 @@ QJsonObject MainWindow::captureSyntheticDialogs(const QString &directory) {
     }
     capture("maya", [this] { mayaDialog(); });
     capture("help", [this] { documentationDialog(); });
+    // Captures need a deterministic QWidget dialog. This explicit QA override
+    // must not be mistaken for validation of the Windows native shell dialog.
+    const bool nativeDialogsDisabled = QCoreApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     capture("local-file-picker", [&] {
         LocalFileDialog::getOpenFileNames(this, "Local media picker — synthetic fixture",
                                           QDir(safeDirectory).filePath("synthetic_frames"),
                                           "Synthetic frames (*.png)");
     });
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs, nativeDialogsDisabled);
+    report.insert("filePickerBackend", "custom fallback for synthetic capture");
+    report.insert("nativeFileDialogsValidated", false);
     const QString csv =
         LocalPathPolicy::validateOutput(QDir(safeDirectory).filePath("preview-notes.csv"));
     if (!csv.isEmpty() && m_session->saveNotesCsv(csv))

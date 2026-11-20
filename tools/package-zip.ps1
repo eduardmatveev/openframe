@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $package = (Resolve-Path -LiteralPath $PackageDirectory).Path
 $manifest = Get-Content -LiteralPath (Join-Path $package 'build-info.json') -Raw | ConvertFrom-Json
 if ($manifest.version -notmatch '^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$') { throw 'Invalid package version.' }
-$archive = Join-Path (Split-Path -Parent $package) ("OpenFrame-{0}-windows-x64.zip" -f $manifest.version)
+$archive = Join-Path (Split-Path -Parent $package) 'OpenFrame-windows-x64.zip'
 $temporary = $archive + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression

@@ -341,6 +341,12 @@ int main(int argc, char **argv) {
         success(socket, token, "range.set", {{"first", 2}, {"last", 9}, {"loop", "pingpong"}});
         check(session.project().rangeIn == 2 && session.project().rangeOut == 9, "Range mismatch");
         success(socket, token, "viewer.assign", {{"pane", 1}, {"id", sid}});
+        success(socket, token, "viewer.set", {{"mode", "single_b"}});
+        check(session.activeOwnerId() == sid && activeViewerPane(session.project().viewer) == 1 &&
+                  success(socket, token, "viewer.settings").toObject()["mode"] == "single_b",
+              "Single B did not pin the second assignment");
+        success(socket, token, "viewer.set", {{"mode", "active"}});
+        check(session.project().viewer.mode == ViewerMode::AB, "Active viewer alias mismatch");
         success(socket, token, "viewer.set",
                 {{"mode", "split"}, {"splitVertical", false}, {"zoom", 2.0}});
         check(session.project().viewer.mode == ViewerMode::Split &&

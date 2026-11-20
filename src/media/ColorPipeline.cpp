@@ -1,10 +1,12 @@
 #include "ColorPipeline.h"
 #include <QColorSpace>
+#include <QtConcurrent/QtConcurrentMap>
 #include <qfloat16.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <numeric>
 #include <stdexcept>
 #include <vector>
 extern "C" {
@@ -634,17 +636,28 @@ QImage ColorPipeline::quantize(const QImage &image, int bits) {
     if (out.isNull())
         throw std::bad_alloc();
     const double maximum = bits == 16 ? 65535 : 255;
-    for (int y = 0; y < image.height(); ++y) {
+    const int channelsPerLine = image.width() * 4;
+    auto *output = out.bits();
+    const qsizetype stride = out.bytesPerLine();
+    auto quantizeRow = [&](int y) {
         const auto src = reinterpret_cast<const float *>(straight.constScanLine(y));
+        auto *row = output + y * stride;
         if (bits == 16) {
-            auto dst = reinterpret_cast<quint16 *>(out.scanLine(y));
-            for (int x = 0; x < image.width() * 4; ++x)
+            auto dst = reinterpret_cast<quint16 *>(row);
+            for (int x = 0; x < channelsPerLine; ++x)
                 dst[x] = quint16(std::clamp(double(src[x]) * maximum, 0.0, maximum) + .5);
         } else {
-            auto dst = out.scanLine(y);
-            for (int x = 0; x < image.width() * 4; ++x)
-                dst[x] = quint8(std::clamp(double(src[x]) * maximum, 0.0, maximum) + .5);
+            for (int x = 0; x < channelsPerLine; ++x)
+                row[x] = quint8(std::clamp(double(src[x]) * maximum, 0.0, maximum) + .5);
         }
+    };
+    if (qint64(image.width()) * image.height() >= 1024 * 1024) {
+        QList<int> rows(image.height());
+        std::iota(rows.begin(), rows.end(), 0);
+        QtConcurrent::blockingMap(rows, quantizeRow);
+    } else {
+        for (int y = 0; y < image.height(); ++y)
+            quantizeRow(y);
     }
     out.setColorSpace(image.colorSpace());
     return out;

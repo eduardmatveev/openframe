@@ -68,7 +68,7 @@ void overlay(QPainter &painter, const Project &project, qint64 frame, const QSiz
         QFont font("Segoe UI");
         font.setPixelSize(std::max(11, w / 80));
         painter.setFont(font);
-        auto paneIndex = v.mode == ViewerMode::AB ? activeViewerPane(v) : 0;
+        auto paneIndex = isSinglePaneMode(v.mode) ? activeViewerPane(v) : 0;
         auto owner = viewerPaneOwner(project, paneIndex);
         frame = viewerPaneFrame(project, frame, paneIndex);
         auto t = project.timeline(owner);
@@ -186,12 +186,16 @@ void drawOverlay(QPainter &p, const OverlaySettings &v, QSize size, MediaEngine 
 }
 } // namespace
 QImage FrameComposer::compose(const Project &p, qint64 frame, MediaEngine &engine,
-                              const QSize &requested, bool annotations) {
-    return ColorPipeline::quantize(composeHighPrecision(p, frame, engine, requested, annotations),
-                                   8);
+                              const QSize &requested, bool annotations, ComparisonLayers *layers) {
+    auto image = composeHighPrecision(p, frame, engine, requested, annotations, layers);
+    // Source-over composition on an opaque canvas keeps every alpha at one.
+    if (p.viewer.background.alphaF() == 1.0f)
+        image.reinterpretAsFormat(QImage::Format_RGBA32FPx4);
+    return ColorPipeline::quantize(image, 8);
 }
 QImage FrameComposer::composeHighPrecision(const Project &p, qint64 frame, MediaEngine &engine,
-                                           const QSize &requested, bool annotations) {
+                                           const QSize &requested, bool annotations,
+                                           ComparisonLayers *layers) {
     QSize size = requested.isValid() ? requested : p.viewer.outputSize;
     size = size.expandedTo({16, 16}).boundedTo({8192, 8192});
     QImage out(size, QImage::Format_RGBA32FPx4_Premultiplied);
@@ -202,7 +206,10 @@ QImage FrameComposer::composeHighPrecision(const Project &p, qint64 frame, Media
     QPainter painter(&out);
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
     auto &v = p.viewer;
-    QRectF full(QPointF(0, 0), QSizeF(size));
+    // Two float RGBA layers at UHD occupy about 253 MiB.
+    if ((v.mode != ViewerMode::Blend && v.mode != ViewerMode::Wipe) ||
+        qint64(size.width()) * size.height() > 8 * 1024 * 1024)
+        layers = nullptr;
     PainterState canvasState(painter);
     if (v.panZoom.enabled) {
         painter.translate(size.width() * (.5 + v.panZoom.pan.x()),
@@ -213,8 +220,9 @@ QImage FrameComposer::composeHighPrecision(const Project &p, qint64 frame, Media
     auto transform = [&](int n) {
         return n < v.transforms.size() ? v.transforms[n] : ViewTransform{};
     };
-    for (int n = 0; n < 4; ++n)
-        if (!viewerPaneRect(v, n).isEmpty()) {
+    const int paneCount = v.mode == ViewerMode::Grid ? 4 : 2;
+    for (int n = 0; n < paneCount; ++n)
+        if (!viewerPaneRect(v, n).isEmpty() && (!layers || (*layers)[n].isNull())) {
             auto e = evaluateAssignment(p, viewerPaneOwner(p, n), frame);
             if (e)
                 if (auto source = p.source(e->sourceId))
@@ -226,24 +234,41 @@ QImage FrameComposer::composeHighPrecision(const Project &p, qint64 frame, Media
                             rect.width() * size.width(), rect.height() * size.height());
         if (bounds.isEmpty())
             return;
-        // Each owner keeps its own normalized overlay. Composite that overlay with its
-        // pane before applying comparison clipping/opacity, never over another owner's video.
+        if (layers && !(*layers)[n].isNull()) {
+            painter.drawImage(bounds, (*layers)[n]);
+            return;
+        }
+        const auto owner = viewerPaneOwner(p, n);
+        auto paintContents = [&](QPainter &target, const QSize &extent) {
+            pane(target, QRectF(QPointF{}, QSizeF(extent)), assigned(p, owner, frame, engine),
+                 transform(n));
+            if (annotations && v.showAnnotations &&
+                (!p.annotations.isEmpty() || v.annotationBackground.alphaF() > 0.0f)) {
+                target.drawImage(0, 0, renderAnnotationLayer(p, owner, viewerPaneFrame(p, frame, n),
+                                                            extent));
+            }
+        };
+        // A single opaque pane at its native canvas size can use the output buffer directly.
+        if (isSinglePaneMode(v.mode) && painter.worldTransform().isIdentity() &&
+            v.background.alphaF() == 1.0f) {
+            paintContents(painter, size);
+            return;
+        }
+        // Keep each pane's picture and annotations together for comparison and transforms.
         QImage layer(bounds.size().toSize().expandedTo({1, 1}),
                      QImage::Format_RGBA32FPx4_Premultiplied);
         if (layer.isNull())
             throw std::bad_alloc();
         layer.fill(v.background);
-        const auto owner = viewerPaneOwner(p, n);
         QPainter local(&layer);
         local.setRenderHint(QPainter::SmoothPixmapTransform);
-        pane(local, QRectF(QPointF{}, QSizeF(layer.size())), assigned(p, owner, frame, engine),
-             transform(n));
+        paintContents(local, layer.size());
         local.end();
-        if (annotations && v.showAnnotations)
-            paintAnnotations(layer, p, owner, viewerPaneFrame(p, frame, n));
+        if (layers)
+            (*layers)[n] = layer;
         painter.drawImage(bounds, layer);
     };
-    if (v.mode == ViewerMode::Single || v.mode == ViewerMode::AB) {
+    if (isSinglePaneMode(v.mode)) {
         drawPane(activeViewerPane(v));
     } else if (v.mode == ViewerMode::Split) {
         drawPane(0);

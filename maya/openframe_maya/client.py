@@ -35,6 +35,14 @@ class OpenFrameError(RuntimeError):
         self.code = code
 
 
+class InstanceSelectionRequired(OpenFrameError):
+    pass
+
+
+class EndpointUnavailable(OpenFrameError):
+    pass
+
+
 def endpoint_directory():
     if os.name == "nt":
         root = os.environ.get("LOCALAPPDATA")
@@ -50,16 +58,17 @@ def discover_endpoints(directory=None):
     directory = directory or endpoint_directory()
     try:
         directory = local_path(directory, directory=True)
+        found = []
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if entry.name.startswith("endpoint-") and entry.name.endswith(".json"):
+                    try:
+                        path = local_path(entry.path)
+                        found.append((os.stat(path).st_mtime_ns, path))
+                    except (OSError, ValueError):
+                        continue
     except (OSError, ValueError):
         return []
-    found = []
-    for entry in os.scandir(directory):
-        if entry.name.startswith("endpoint-") and entry.name.endswith(".json"):
-            try:
-                path = local_path(entry.path)
-                found.append((os.stat(path).st_mtime_ns, path))
-            except (OSError, ValueError):
-                continue
     return [path for _, path in sorted(found, reverse=True)]
 
 
@@ -89,9 +98,20 @@ def _read_endpoint(path):
     return endpoint
 
 
+def viewer_layout_params(layout):
+    if layout in ("horizontal", "vertical"):
+        return {"mode": "split", "splitVertical": layout == "horizontal"}
+    if layout in ("single", "single_b", "active"):
+        return {"mode": layout, "splitVertical": False}
+    raise ValueError("Unknown viewer layout")
+
+
 class Client:
-    def __init__(self, endpoint_path=None, timeout=2.0, *, cancel_event=None):
+    def __init__(self, endpoint_path=None, timeout=2.0, *, cancel_event=None, strict_selection=False,
+                 preferred_instance=None):
         self.endpoint_path = os.fspath(endpoint_path) if endpoint_path else None
+        self._strict_selection = strict_selection
+        self._preferred_instance = preferred_instance
         self._timeout = validate_timeout(timeout)
         self._socket = None
         self._endpoint = None
@@ -188,6 +208,49 @@ class Client:
                 pass
             sock.close()
 
+    def _check_connect(self, cancel_serial):
+        with self._state_lock:
+            if self._cancel_serial != cancel_serial or (self._cancel_event and self._cancel_event.is_set()):
+                raise OpenFrameError("OpenFrame operation cancelled")
+
+    def _connect_path(self, path, deadline, cancel_serial):
+        self._check_connect(cancel_serial)
+        if time.monotonic() >= deadline:
+            raise OpenFrameError("OpenFrame RPC deadline exceeded")
+        endpoint = _read_endpoint(path)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        generation = None
+        try:
+            sock.setblocking(False)
+            with self._state_lock:
+                self._check_connect(cancel_serial)
+                self._generation += 1
+                generation = self._generation
+                self._socket, self._endpoint = sock, endpoint
+            # connect_ex with a numeric address never consults DNS or proxies.
+            result = sock.connect_ex(("127.0.0.1", endpoint["port"]))
+            if result not in (0, errno.EISCONN):
+                if result not in (errno.EINPROGRESS, errno.EWOULDBLOCK, errno.EALREADY, 10035, 10036, 10037):
+                    raise OSError(result, "Local socket connect failed")
+                self._wait(sock, generation, deadline, writing=True)
+                result = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+                if result:
+                    raise OSError(result, "Local socket connect failed")
+            self._active(sock, generation, deadline)
+            if sock.getpeername()[0] != "127.0.0.1":
+                raise OpenFrameError("Unexpected peer address")
+            self._pending.clear()
+            status = self._rpc("status", {}, deadline, sock, endpoint, generation)
+            if not isinstance(status, dict) or status.get("instance") != endpoint["instance"]:
+                raise OpenFrameError("Endpoint instance identity changed")
+            return status
+        except (OSError, ValueError, OpenFrameError):
+            if generation is None:
+                sock.close()
+            else:
+                self._disconnect(generation)
+            raise
+
     def connect(self):
         with self._serialized() as (deadline, cancel_serial):
             with self._state_lock:
@@ -198,62 +261,52 @@ class Client:
                 selected = local_path(self.endpoint_path, output=True)
                 candidates = [selected]
                 if not os.path.exists(selected):
+                    if self._strict_selection:
+                        raise EndpointUnavailable("Selected instance is offline. Press Connect to search again.")
                     candidates = discover_endpoints(os.path.dirname(selected))
                     if len(candidates) != 1:
                         raise OpenFrameError("Selected endpoint disappeared; select a running OpenFrame instance")
             else:
                 candidates = discover_endpoints()
-            last_error = None
-            for path in candidates:
-                sock = None
-                generation = None
+            if not candidates:
+                raise EndpointUnavailable("No OpenFrame instances found. Start OpenFrame to connect.")
+            check_all = self._strict_selection and not self.endpoint_path and len(candidates) > 1
+            chosen_path = chosen_id = last_error = None
+            ambiguous = False
+            for index, path in enumerate(candidates):
+                attempt_deadline = deadline
+                if check_all:
+                    # Reserve a share for each remaining handshake and the final connection.
+                    now = time.monotonic()
+                    attempt_deadline = now + (deadline - now) / (len(candidates) - index + 1)
                 try:
-                    with self._state_lock:
-                        if self._cancel_serial != cancel_serial:
-                            raise OpenFrameError("OpenFrame operation cancelled")
-                    if time.monotonic() >= deadline:
-                        raise OpenFrameError("OpenFrame RPC deadline exceeded")
-                    endpoint = _read_endpoint(path)
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.setblocking(False)
-                    with self._state_lock:
-                        if self._cancel_serial != cancel_serial:
-                            sock.close()
-                            raise OpenFrameError("OpenFrame operation cancelled")
-                        self._generation += 1
-                        generation = self._generation
-                        self._socket, self._endpoint = sock, endpoint
-                    # Deliberately avoid create_connection/getaddrinfo and proxy APIs.
-                    result = sock.connect_ex(("127.0.0.1", endpoint["port"]))
-                    if result not in (0, errno.EISCONN):
-                        if result not in (errno.EINPROGRESS, errno.EWOULDBLOCK, errno.EALREADY, 10035, 10036, 10037):
-                            raise OSError(result, "Local socket connect failed")
-                        self._wait(sock, generation, deadline, writing=True)
-                        result = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
-                        if result:
-                            raise OSError(result, "Local socket connect failed")
-                    self._active(sock, generation, deadline)
-                    if sock.getpeername()[0] != "127.0.0.1":
-                        raise OpenFrameError("Unexpected peer address")
-                    self._pending.clear()
-                    status = self._rpc("status", {}, deadline, sock, endpoint, generation)
-                    if not isinstance(status, dict) or status.get("instance") != endpoint["instance"]:
-                        raise OpenFrameError("Endpoint instance identity changed")
-                    if self.endpoint_path:
-                        self.endpoint_path = path
-                    return status
+                    status = self._connect_path(path, attempt_deadline, cancel_serial)
                 except (OSError, ValueError, OpenFrameError) as error:
+                    self._check_connect(cancel_serial)
                     last_error = error
-                    if generation is not None:
-                        self._disconnect(generation)
-                    elif sock:
-                        sock.close()
-                    with self._state_lock:
-                        if self._cancel_serial != cancel_serial:
-                            raise OpenFrameError("OpenFrame operation cancelled") from error
                     if time.monotonic() >= deadline:
                         break
-            raise OpenFrameError("OpenFrame is unavailable: {}".format(last_error or "no endpoint files"))
+                    continue
+                if not check_all or status["instance"] == self._preferred_instance:
+                    if self.endpoint_path or self._strict_selection:
+                        self.endpoint_path = path
+                    return status
+                self._disconnect()
+                if chosen_path and status["instance"] != chosen_id:
+                    ambiguous = True
+                    if self._preferred_instance is None:
+                        break
+                chosen_path, chosen_id = path, status["instance"]
+            if ambiguous:
+                raise InstanceSelectionRequired("Several OpenFrame instances responded. Select one and press Connect.")
+            if chosen_path:
+                status = self._connect_path(chosen_path, deadline, cancel_serial)
+                if status["instance"] != chosen_id:
+                    self._disconnect()
+                    raise InstanceSelectionRequired("The instance changed during discovery. Select it again.")
+                self.endpoint_path = chosen_path
+                return status
+            raise OpenFrameError("OpenFrame is unavailable: {}".format(last_error))
 
     def close(self):
         self._disconnect(cancel=True)

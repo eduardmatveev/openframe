@@ -7,7 +7,8 @@ import time
 import uuid
 from dataclasses import dataclass
 from fractions import Fraction
-from .client import Client, OpenFrameError, endpoint_directory, validate_timeout
+from .client import (Client, EndpointUnavailable, InstanceSelectionRequired, OpenFrameError,
+                     endpoint_directory, validate_timeout)
 from .paths import local_path
 from .capture import CaptureResult, CaptureSettings, TimelineSound, MAX_SEQUENCE_FRAMES
 
@@ -109,16 +110,19 @@ class MayaHost:
             raise OpenFrameError("Maya frame rate is outside the capture limits")
         return rate.numerator, rate.denominator
 
-    def sound_snapshot(self):
+    def sound_snapshot(self, node=None):
         self.assert_main_thread()
         controls = self.cmds.lsUI(type="timeControl", long=True) or []
-        if len(controls) > 1:
-            raise OpenFrameError("Cannot identify a unique Maya Time Slider")
-        if not controls:
-            return None
-        node = self.cmds.timeControl(controls[0], query=True, sound=True)
-        if not node:
-            return None
+        if node is None:
+            if len(controls) > 1:
+                raise OpenFrameError("Cannot identify a unique Maya Time Slider; choose an audio source explicitly")
+            if not controls:
+                return None
+            node = self.cmds.timeControl(controls[0], query=True, sound=True)
+            if not node:
+                return None
+        elif not isinstance(node, str) or not node or not self.cmds.objExists(node) or self.cmds.nodeType(node) != "audio":
+            raise OpenFrameError("The selected Maya audio source no longer exists")
         # Typed queries return state only; no scene node or preference is changed.
         path = local_path(self.cmds.sound(node, query=True, file=True))
         timing = {key: float(self.cmds.sound(node, query=True, **{key: True}))
@@ -126,7 +130,7 @@ class MayaHost:
         return TimelineSound(node, path, timing["offset"], timing["sourceStart"],
                              timing["sourceEnd"], timing["endTime"],
                              bool(self.cmds.sound(node, query=True, mute=True)),
-                             bool(self.cmds.timeControl(controls[0], query=True, displaySound=True)))
+                             bool(controls and self.cmds.timeControl(controls[0], query=True, displaySound=True)))
 
     def capture(self, path, first, last, settings, sound):
         self.assert_main_thread()
@@ -139,7 +143,7 @@ class MayaHost:
                    "useTraxSounds": False, "combineSound": False}
         # Maya 2024 treats sound="" as a sound-loading error, including when no
         # timeline sound exists. Omitting this optional flag captures silently.
-        if sound is not None and not sound.muted:
+        if settings.include_sound and settings.format_name != "image" and sound is not None and not sound.muted:
             options["sound"] = sound.node
         if settings.encoding is not None:
             options["compression"] = settings.encoding
@@ -151,14 +155,20 @@ class MayaHost:
 class Adapter:
     MAX_SYNC_HZ = 60
 
-    def __init__(self, endpoint_path=None, *, host=None, client_factory=None, poll_interval=1 / 60, timeout=0.75):
+    def __init__(self, endpoint_path=None, *, host=None, client_factory=None, poll_interval=1 / 60,
+                 timeout=0.75, pin_instance=False, preferred_instance=None):
         if not 1 / 60 <= poll_interval <= 5:
             raise ValueError("poll_interval must be between 1/60 and 5 seconds")
         timeout = validate_timeout(timeout)
         self.host = host or MayaHost()
         self.session_id = str(uuid.uuid4())
         self.name = "Maya {}".format(os.getpid())
-        self._client_factory = client_factory or (lambda: Client(endpoint_path, cancel_event=self._stop))
+        self._pin_instance = pin_instance
+        self._endpoint_path = endpoint_path
+        self._pinned_instance = None
+        self._client_factory = client_factory or (lambda: Client(
+            self._endpoint_path, cancel_event=self._stop, strict_selection=self._pin_instance,
+            preferred_instance=preferred_instance))
         self._client = None
         self._lock = threading.RLock()
         self._stop = threading.Event()
@@ -180,7 +190,8 @@ class Adapter:
         self._config_revision = -1
         self._config_pending = False
         self._commands = queue.Queue(maxsize=64)
-        self._state = {"connected": False, "error": "", "status": {}, "running": False}
+        self._state = {"connected": False, "error": "", "status": {}, "running": False,
+                       "phase": "disconnected", "endpoint": None}
         self._owned_playblasts = {}
         self._owned_capture_groups = {}
         self._owned_directories = {}
@@ -203,7 +214,7 @@ class Adapter:
         self._generation += 1
         self._callback = self.host.add_time_callback(self._time_changed)
         with self._lock:
-            self._state.update(running=True, error="")
+            self._state.update(running=True, phase="connecting", error="")
         self._thread = threading.Thread(target=self._run, name="OpenFrame-Maya-" + self.session_id[:8], daemon=True)
         self._thread.start()
         return self
@@ -227,7 +238,7 @@ class Adapter:
         with self._lock:
             self._pending_remote = None
             self._remote_scheduled = False
-            self._state.update(running=False, connected=False)
+            self._state.update(running=False, connected=False, phase="disconnected")
 
     def configure(self, *, direction=None, mapping=None, timeout=None):
         if direction is not None and direction not in _DIRECTIONS:
@@ -326,7 +337,12 @@ class Adapter:
                         snapshot = dict(self._snapshot)
                         generation = self._generation
                         self._client.timeout = config["timeoutSeconds"]
-                    self._client.connect()
+                    handshake = self._client.connect()
+                    if self._pin_instance:
+                        if self._pinned_instance is not None and handshake["instance"] != self._pinned_instance:
+                            raise InstanceSelectionRequired("The selected instance was replaced. Press Connect to select it again.")
+                        self._pinned_instance = handshake["instance"]
+                        self._endpoint_path = self._client.endpoint_path
                     status = self._client.call("maya.register", sessionId=self.session_id, name=self.name,
                                                pid=os.getpid(), mayaRangeStart=snapshot["range_start"], **config)
                     self._last_remote_revision = None
@@ -334,7 +350,8 @@ class Adapter:
                     with self._lock:
                         if generation != self._generation or self._stop.is_set():
                             raise OpenFrameError("Connection was superseded")
-                        self._state.update(connected=True, error="", status=status)
+                        self._state.update(connected=True, phase="connected", error="", status=status,
+                                           endpoint=self._endpoint_path, instance=self._pinned_instance)
                     backoff = 0.1
                 # Maya callbacks can arrive faster than display refresh. Keep a
                 # strict per-connection budget while coalescing the latest frame.
@@ -350,7 +367,13 @@ class Adapter:
                     self._pending_remote = None
                     self._remote_scheduled = False
                     self._config_revision = -1
-                    self._state.update(connected=False, error=str(error))
+                    if isinstance(error, InstanceSelectionRequired):
+                        phase = "selection"
+                    elif isinstance(error, EndpointUnavailable) or self._pinned_instance is not None:
+                        phase = "waiting"
+                    else:
+                        phase = "error"
+                    self._state.update(connected=False, phase=phase, error=str(error))
                 if self._client:
                     self._client.close()
                     self._client = None
@@ -614,8 +637,8 @@ class Adapter:
                 delete_checked(protected, protected_directories, None)
         self._query_capture_references(sources_received)
 
-    def playblast(self, path=None, *, viewer="A", width=960, height=540, format_name="avi",
-                  timecode_offset=False, include_sound=True, callback=None):
+    def playblast(self, path=None, *, viewer="A", width=CaptureSettings.width, height=CaptureSettings.height,
+                  format_name="avi", timecode_offset=False, include_sound=True, callback=None):
         """Movie compatibility entry point: still returns the captured filename."""
         if format_name not in ("avi", "webm"):
             raise ValueError("Movie playblast supports AVI and WebM")
@@ -624,7 +647,7 @@ class Adapter:
                               timecode_offset=timecode_offset, callback=callback)
         return result.paths[0]
 
-    def playblast_sequence(self, directory=None, *, viewer="A", width=960, height=540,
+    def playblast_sequence(self, directory=None, *, viewer="A", width=CaptureSettings.width, height=CaptureSettings.height,
                            image_format="png", padding=4, timecode_offset=False, callback=None):
         """Capture into a new directory; return a typed result and import ONE source."""
         return self.capture(directory, settings=CaptureSettings(format_name="image",
@@ -633,7 +656,7 @@ class Adapter:
                             callback=callback)
 
     def capture(self, path=None, *, settings=None, viewer="A", first=None, last=None,
-                timecode_offset=False, callback=None):
+                timecode_offset=False, callback=None, sound_node=None):
         """Capture on the main thread, then enqueue asynchronous import.
 
         For image capture path is a NEW directory, not a filename prefix. Movie
@@ -669,7 +692,7 @@ class Adapter:
                          or capture_last - capture_first >= MAX_SEQUENCE_FRAMES):
             raise ValueError("Image capture needs 1..100000 consecutive integer frames")
         fps_num, fps_den = self.host.frame_rate()
-        sound = self.host.sound_snapshot() if settings.include_sound and not sequence else None
+        sound = (self.host.sound_snapshot(sound_node) if sound_node is not None else self.host.sound_snapshot()) if settings.include_sound and not sequence else None
         if sound is not None:
             if not isinstance(sound, TimelineSound):
                 raise TypeError("Maya sound snapshot must be TimelineSound")

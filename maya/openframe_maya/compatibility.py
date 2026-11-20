@@ -7,7 +7,7 @@ connects ONLY to OpenFrame, through its authenticated endpoint file.
 """
 import os
 import time
-from .client import Client, OpenFrameError, discover_endpoints, _read_endpoint
+from .client import Client, OpenFrameError, discover_endpoints, _read_endpoint, viewer_layout_params
 from .paths import local_path
 
 
@@ -273,10 +273,12 @@ class KeyframePro2ClientApi:
         return self._call("viewer.assign", id=id, pane=index)
 
     def set_viewer_layout(self, layout="single"):
-        if layout not in ("single", "horizontal", "vertical"):
-            self.last_error = "Unknown viewer layout"
+        try:
+            params = viewer_layout_params(layout)
+        except ValueError as error:
+            self.last_error = str(error)
             return False
-        return self._call("viewer.set", False, mode="single" if layout == "single" else "split", splitVertical=layout == "vertical")
+        return self._call("viewer.set", False, **params)
 
     def queue_export(self, output_dir_path, base_file_name, ext, width, height, ignore_range=False,
                      exclude_audio=False, viewer_capture=False, frames_to_capture="all",

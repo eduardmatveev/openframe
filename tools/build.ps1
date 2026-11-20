@@ -129,12 +129,20 @@ if ($Package) {
         Copy-Item -LiteralPath $dll.FullName -Destination $destination -Force
     }
     [System.IO.File]::WriteAllText((Join-Path $destination 'qt.conf'), "[Paths]`nPrefix=.`nPlugins=.`n", [System.Text.UTF8Encoding]::new($false))
-    foreach ($name in @('maya', 'docs', 'licenses')) {
+    $mayaSource = Join-Path $projectRoot 'maya'
+    foreach ($asset in (Get-ChildItem -LiteralPath $mayaSource -Recurse -File -Force)) {
+        $relative = $asset.FullName.Substring($projectRoot.Length + 1)
+        if ($asset.Extension -in @('.pyc', '.pyo') -or $relative.Split([IO.Path]::DirectorySeparatorChar) -contains '__pycache__') { continue }
+        $target = Join-Path $destination $relative
+        [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target)) | Out-Null
+        Copy-Item -LiteralPath $asset.FullName -Destination $target -Force
+    }
+    foreach ($name in @('docs', 'licenses')) {
         if (Test-Path -LiteralPath (Join-Path $projectRoot $name)) {
             Copy-Item -LiteralPath (Join-Path $projectRoot $name) -Destination $destination -Recurse -Force
         }
     }
-    foreach ($name in @('README.md', 'LICENSE', 'THIRD_PARTY.md', 'Install.mel')) {
+    foreach ($name in @('README.md', 'LICENSE', 'THIRD_PARTY.md')) {
         if (Test-Path -LiteralPath (Join-Path $projectRoot $name)) {
             Copy-Item -LiteralPath (Join-Path $projectRoot $name) -Destination $destination -Force
         }
@@ -156,7 +164,7 @@ if ($Package) {
     [pscustomobject]@{
         schemaVersion = 1
         application = 'OpenFrame'
-        version = '0.4.1'
+        version = '0.4.4'
         builtAtUtc = [datetime]::UtcNow.ToString('o')
         configuration = $Configuration
         architecture = 'windows-x64'

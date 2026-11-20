@@ -1,0 +1,7 @@
+// Drag this file from the maya folder into a Maya viewport.
+// Maya records the source path of this procedure (Autodesk whatIs command).
+global proc OpenFrameDragDropInstall()
+{
+    python("import runpy, pathlib, maya.mel as _of_mel; _of_source = _of_mel.eval('whatIs OpenFrameDragDropInstall'); runpy.run_path(str(pathlib.Path(_of_source.split('found in: ', 1)[1]).with_name('install.py')), run_name='__main__')");
+}
+OpenFrameDragDropInstall();

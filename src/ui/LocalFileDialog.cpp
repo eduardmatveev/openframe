@@ -1,4 +1,5 @@
 #include "LocalFileDialog.h"
+#include "LocalFileDialog_p.h"
 #include "Theme.h"
 #include "integration/LocalPathPolicy.h"
 #include <QComboBox>
@@ -6,6 +7,8 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QFileDialog>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -55,7 +58,102 @@ QStringList localRoots() {
 #endif
     return roots;
 }
+void reportSelectionError(QWidget *parent, const QString &error) {
+    auto message =
+        new QMessageBox(QMessageBox::Warning, "Unsupported location",
+                        "Choose a local file or folder.\n" + error, QMessageBox::Ok, parent);
+    message->setTextFormat(Qt::PlainText);
+    message->setAttribute(Qt::WA_DeleteOnClose);
+    message->open();
+}
+bool useNativeDialogs() {
+    return fileDialogDetail::useNativeWindowsDialogs(
+        QGuiApplication::platformName(),
+        QCoreApplication::testAttribute(Qt::AA_DontUseNativeDialogs));
+}
+QStringList nativeSelection(QWidget *parent, const QString &title, const QString &directory,
+                            const QString &filter, fileDialogDetail::Selection mode) {
+    using fileDialogDetail::Selection;
+    const auto initial = fileDialogDetail::safeInitialPath(directory, mode == Selection::Directory);
+    if (initial.isEmpty()) {
+        reportSelectionError(parent, "No accessible local starting directory was found.");
+        return {};
+    }
+    // No DontUseNativeDialog flag: the Windows platform plugin owns the shell UI.
+    // Its browsing can contact OS-configured locations. The user's shell exception
+    // does not permit OpenFrame's media/project/export code to use remote paths.
+    QStringList selected;
+    switch (mode) {
+    case Selection::OpenFile:
+        selected << QFileDialog::getOpenFileName(parent, title, initial, filter);
+        break;
+    case Selection::OpenFiles:
+        selected = QFileDialog::getOpenFileNames(parent, title, initial, filter);
+        break;
+    case Selection::SaveFile:
+        selected << QFileDialog::getSaveFileName(parent, title, initial, filter);
+        break;
+    case Selection::Directory:
+        selected << QFileDialog::getExistingDirectory(parent, title, initial);
+        break;
+    }
+    QString error;
+    const auto safe = fileDialogDetail::validateSelection(selected, mode, &error);
+    if (!error.isEmpty())
+        reportSelectionError(parent, error);
+    return safe;
+}
 } // namespace
+namespace fileDialogDetail {
+bool useNativeWindowsDialogs(const QString &platformName, bool nativeDialogsDisabled) {
+#ifdef Q_OS_WIN
+    return platformName == "windows" && !nativeDialogsDisabled;
+#else
+    Q_UNUSED(platformName);
+    Q_UNUSED(nativeDialogsDisabled);
+    return false;
+#endif
+}
+QString safeInitialPath(const QString &initial, bool directoryOnly) {
+    if (!initial.isEmpty()) {
+        const auto directory = LocalPathPolicy::validateDirectory(initial);
+        if (!directory.isEmpty())
+            return directory;
+        const auto file = LocalPathPolicy::validateOutput(initial);
+        if (!file.isEmpty())
+            return directoryOnly ? lexicalParent(file) : file;
+    }
+    for (const auto &candidate : {QDir::currentPath(), QDir::homePath()}) {
+        const auto directory = LocalPathPolicy::validateDirectory(candidate);
+        if (!directory.isEmpty())
+            return directory;
+    }
+    return localRoots().value(0);
+}
+QStringList validateSelection(const QStringList &paths, Selection mode, QString *error) {
+    if (error)
+        error->clear();
+    // The single-file static Qt methods return an empty QString for Cancel.
+    if (paths.isEmpty() || (paths.size() == 1 && paths.first().isEmpty()))
+        return {};
+    if (mode != Selection::OpenFiles && paths.size() != 1) {
+        if (error)
+            *error = "Choose a single file or folder.";
+        return {};
+    }
+    QStringList selected;
+    for (const auto &path : paths) {
+        const auto safe =
+            mode == Selection::Directory  ? LocalPathPolicy::validateDirectory(path, error)
+            : mode == Selection::SaveFile ? LocalPathPolicy::validateOutput(path, error)
+                                          : LocalPathPolicy::validateInput(path, error);
+        if (safe.isEmpty())
+            return {}; // Reject the entire multi-selection, never a partial import.
+        selected << safe;
+    }
+    return selected;
+}
+} // namespace fileDialogDetail
 QString createLocalDirectoryChain(const QString &input, QString *error) {
     if (error)
         error->clear();
@@ -117,6 +215,7 @@ QString createLocalDirectoryChain(const QString &input, QString *error) {
 LocalFileDialog::LocalFileDialog(QWidget *parent, const QString &title, const QString &initial,
                                  const QString &filter, Mode mode)
     : QDialog(parent), m_mode(mode) {
+    setObjectName("localFileDialogFallback");
     setWindowTitle(title);
     resize(760, 520);
     auto layout = new QVBoxLayout(this);
@@ -135,6 +234,7 @@ LocalFileDialog::LocalFileDialog(QWidget *parent, const QString &title, const QS
     pathRow->addWidget(up);
     layout->addLayout(pathRow);
     m_entries = new QTreeWidget(this);
+    m_entries->setObjectName("localEntries");
     m_entries->setHeaderLabels({"Name", "Size", "Modified"});
     m_entries->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_entries->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
@@ -145,11 +245,13 @@ LocalFileDialog::LocalFileDialog(QWidget *parent, const QString &title, const QS
     m_entries->setSortingEnabled(true);
     layout->addWidget(m_entries, 1);
     m_name = new QLineEdit(this);
+    m_name->setObjectName("localFileName");
     m_name->setPlaceholderText(mode == Mode::Directory ? "Current directory"
                                                        : "File name or local file path");
     if (mode != Mode::Directory)
         layout->addWidget(m_name);
     m_filter = new QComboBox(this);
+    m_filter->setObjectName("localFileFilter");
     m_filter->addItems(filter.isEmpty() ? QStringList{"All files (*)"} : filter.split(";;"));
     if (mode != Mode::Directory)
         layout->addWidget(m_filter);
@@ -187,24 +289,11 @@ LocalFileDialog::LocalFileDialog(QWidget *parent, const QString &title, const QS
         if (items.size() == 1 && !items.first()->data(0, Qt::UserRole).toBool())
             m_name->setText(items.first()->text(0));
     });
-    QString start = initial, initialName;
-    if (!start.isEmpty()) {
-        auto valid = LocalPathPolicy::validateDirectory(start);
-        if (valid.isEmpty()) {
-            QString candidate = lexicalAbsolute(start);
-            QString output = LocalPathPolicy::validateOutput(candidate);
-            if (!output.isEmpty()) {
-                initialName = output.mid(output.lastIndexOf('/') + 1);
-                start = lexicalParent(output);
-            } else
-                start.clear();
-        } else
-            start = valid;
-    }
-    if (start.isEmpty()) {
-        start = LocalPathPolicy::validateDirectory(QDir::currentPath());
-        if (start.isEmpty() && roots->count())
-            start = roots->itemText(0);
+    QString start = fileDialogDetail::safeInitialPath(initial, mode == Mode::Directory);
+    QString initialName;
+    if (!start.isEmpty() && LocalPathPolicy::validateDirectory(start).isEmpty()) {
+        initialName = start.mid(start.lastIndexOf('/') + 1);
+        start = lexicalParent(start);
     }
     navigate(start);
     m_name->setText(initialName);
@@ -408,20 +497,28 @@ QStringList LocalFileDialog::localFiles(const QString &directory, const QStringL
 }
 QStringList LocalFileDialog::getOpenFileNames(QWidget *p, const QString &t, const QString &d,
                                               const QString &f) {
+    if (useNativeDialogs())
+        return nativeSelection(p, t, d, f, fileDialogDetail::Selection::OpenFiles);
     LocalFileDialog dialog(p, t, d, f, Mode::OpenMany);
     return dialog.exec() == QDialog::Accepted ? dialog.m_selected : QStringList{};
 }
 QString LocalFileDialog::getOpenFileName(QWidget *p, const QString &t, const QString &d,
                                          const QString &f) {
+    if (useNativeDialogs())
+        return nativeSelection(p, t, d, f, fileDialogDetail::Selection::OpenFile).value(0);
     LocalFileDialog dialog(p, t, d, f, Mode::Open);
     return dialog.exec() == QDialog::Accepted ? dialog.m_selected.value(0) : QString();
 }
 QString LocalFileDialog::getSaveFileName(QWidget *p, const QString &t, const QString &d,
                                          const QString &f) {
+    if (useNativeDialogs())
+        return nativeSelection(p, t, d, f, fileDialogDetail::Selection::SaveFile).value(0);
     LocalFileDialog dialog(p, t, d, f, Mode::Save);
     return dialog.exec() == QDialog::Accepted ? dialog.m_selected.value(0) : QString();
 }
 QString LocalFileDialog::getExistingDirectory(QWidget *p, const QString &t, const QString &d) {
+    if (useNativeDialogs())
+        return nativeSelection(p, t, d, {}, fileDialogDetail::Selection::Directory).value(0);
     LocalFileDialog dialog(p, t, d, {}, Mode::Directory);
     return dialog.exec() == QDialog::Accepted ? dialog.m_selected.value(0) : QString();
 }

@@ -130,6 +130,7 @@ bool secureEqual(const QByteArray &a, const QByteArray &b) {
         different |= static_cast<unsigned char>(a[i]) ^ static_cast<unsigned char>(b[i]);
     return different == 0;
 }
+const QStringList viewerModeNames{"single", "ab", "wipe", "blend", "split", "grid", "single_b"};
 const QStringList overlayTypes{"off",     "safeArea", "grid", "center", "dynamicSymmetry",
                                "phiGrid", "custom",   "image"};
 const QStringList overlayShapeTypes{"line", "rectangle", "ellipse", "polygon", "text"};
@@ -1397,8 +1398,7 @@ QJsonValue ApiServer::dispatch(const QString &method, const QJsonObject &p, Conn
         keys(p, {});
         const auto &viewer = m_session->project().viewer;
         return QJsonObject{
-            {"mode", QStringList{"single", "ab", "wipe", "blend", "split", "grid"}.value(
-                         static_cast<int>(viewer.mode))},
+            {"mode", viewerModeNames.value(static_cast<int>(viewer.mode))},
             {"activePane", viewer.activePane},
             {"wipe", viewer.wipe},
             {"wipePivotY", viewer.wipePivotY},
@@ -1421,9 +1421,8 @@ QJsonValue ApiServer::dispatch(const QString &method, const QJsonObject &p, Conn
                  "flipVertical", "wipePivotY", "wipeAngleDegrees", "color", "showPictureType"});
         auto settings = m_session->project().viewer;
         const auto mode = str(p, "mode", false, 24);
-        const QStringList modes{"single", "ab", "wipe", "blend", "split", "grid"};
         if (!mode.isEmpty()) {
-            const auto at = modes.indexOf(mode);
+            const auto at = viewerModeNames.indexOf(mode == "active" ? QStringLiteral("ab") : mode);
             if (at < 0)
                 invalid("Unknown viewer mode");
             settings.mode = static_cast<ViewerMode>(at);
@@ -1453,7 +1452,7 @@ QJsonValue ApiServer::dispatch(const QString &method, const QJsonObject &p, Conn
         settings.showOverlay = boolean(p, "showOverlay", settings.showOverlay);
         settings.showAnnotations = boolean(p, "showAnnotations", settings.showAnnotations);
         settings.splitVertical = boolean(p, "splitVertical", settings.splitVertical);
-        const int pane = static_cast<int>(integer(p, "pane", settings.activePane, 0, 3));
+        const int pane = static_cast<int>(integer(p, "pane", activeViewerPane(settings), 0, 3));
         settings.transforms.resize(4);
         auto &transform = settings.transforms[pane];
         settings.panZoom.zoom = number(p, "zoom", settings.panZoom.zoom, 0.01, 64);

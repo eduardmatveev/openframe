@@ -25,6 +25,13 @@ def install():
     scripts = Path(cmds.internalVar(userAppDir=True)) / 'scripts'
     reject_links(scripts)
     packages = ('openframe_maya', 'openframe_compat')
+    icon_dir = Path('openframe_maya') / 'icons'
+    maya_icon = icon_dir / 'openframe-maya.png'
+    player_icon = icon_dir / 'openframe-player.png'
+    for icon in (maya_icon, player_icon):
+        reject_links(source / icon)
+        if not (source / icon).is_file():
+            raise RuntimeError('Extract the whole OpenFrame archive before installing: missing ' + str(icon))
     for name in packages:
         if not (source / name).is_dir() or not list((source / name).glob('*.py')):
             raise RuntimeError('Extract the whole OpenFrame archive before installing: missing ' + name)
@@ -41,7 +48,10 @@ def install():
             backup.mkdir(parents=True, exist_ok=True)
             shutil.copytree(str(destination), str(backup / name))
         destination.mkdir(exist_ok=True)
-        for path in (source / name).rglob('*.py'):
+        files = list((source / name).rglob('*.py'))
+        if name == 'openframe_maya':
+            files.extend((source / maya_icon, source / player_icon))
+        for path in files:
             reject_links(path)
             relative = path.relative_to(source / name)
             target = destination / relative
@@ -70,14 +80,14 @@ def install():
         else:
             cmds.shelfButton(name, parent=shelf, **options)
     button('openframeAdapterButton', label='OF Maya', annotation='OpenFrame: Maya synchronization and playblast',
-           image='commandButton.png', imageOverlayLabel='OF Maya', sourceType='python',
+           image=(scripts / maya_icon).as_posix(), imageOverlayLabel='', sourceType='python',
            command='import openframe_maya\nopenframe_maya.show()')
     executable = source.parent / 'OpenFrame.exe'
     if not executable.is_file():
         executable = source.parent / 'dist' / 'OpenFrame-local' / 'OpenFrame.exe'
     if executable.is_file():
         button('openframePlayerButton', label='OpenFrame', annotation='Launch OpenFrame player',
-               image='commandButton.png', imageOverlayLabel='OF', sourceType='python',
+               image=(scripts / player_icon).as_posix(), imageOverlayLabel='', sourceType='python',
                command='import subprocess\nsubprocess.Popen([' + repr(str(executable)) + '])')
     shelf_dir = Path(cmds.internalVar(userShelfDir=True))
     shelf_dir.mkdir(parents=True, exist_ok=True)

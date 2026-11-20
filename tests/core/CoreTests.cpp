@@ -1,5 +1,7 @@
 #include <QtTest>
 #include <QTemporaryDir>
+#include <QEventLoop>
+#include <QTimer>
 #include <QImage>
 #include <QFileInfo>
 #include <QFile>
@@ -23,19 +25,21 @@ namespace {
 struct AudioPresentation {
     qint64 playedUs;
     qint64 frame;
+    qint64 wallUs = 0;
 };
 QJsonObject assessAudioPresentations(const QVector<AudioPresentation> &samples, Rational fps,
-                                     double rate, qint64 anchor, qint64 firstUs, qint64 lastUs) {
+                                     double rate, qint64 anchor, qint64 firstUs, qint64 lastUs,
+                                     qint64 lastWallUs) {
     const auto framePeriodUs = 1000000.0 / (fps.value() * std::abs(rate));
     const auto direction = rate < 0 ? -1 : 1;
     qint64 maximumLag = 0, maximumInterval = 0, maximumAge = 0;
     int count = 0;
     bool coveredStart = false;
     std::optional<AudioPresentation> previous;
-    auto observeHold = [&](qint64 until) {
+    auto observeHold = [&](qint64 until, qint64 wallUntil) {
         if (!previous || until <= firstUs)
             return;
-        maximumInterval = std::max(maximumInterval, until - std::max(firstUs, previous->playedUs));
+        maximumInterval = std::max(maximumInterval, wallUntil - previous->wallUs);
         const auto dueUs =
             qint64(std::floor(direction * (previous->frame - anchor) * framePeriodUs));
         maximumAge = std::max(maximumAge, until - dueUs);
@@ -43,7 +47,7 @@ QJsonObject assessAudioPresentations(const QVector<AudioPresentation> &samples, 
     for (const auto &sample : samples) {
         if (sample.playedUs > lastUs)
             break;
-        observeHold(sample.playedUs);
+        observeHold(sample.playedUs, sample.wallUs);
         if (sample.playedUs <= firstUs)
             coveredStart = true;
         if (sample.playedUs >= firstUs) {
@@ -55,7 +59,11 @@ QJsonObject assessAudioPresentations(const QVector<AudioPresentation> &samples, 
         }
         previous = sample;
     }
-    observeHold(lastUs);
+    observeHold(lastUs, lastWallUs);
+    // Cadence uses monotonic imageReady timestamps. The device's played counter
+    // is quantized (10 ms on the tested WASAPI output); differencing it would
+    // round the two interval endpoints independently and mismeasure GUI cadence.
+    // Audio/video phase and content age still use the audio presentation clock.
     // At most one missing update between presentations. A delivered frame may be
     // one frame late and then remain visible until the next update, so its age
     // also includes those two frame intervals. This is separate from, and does
@@ -86,6 +94,7 @@ QJsonObject assessAudioPresentations(const QVector<AudioPresentation> &samples, 
             {"requiredCount", requiredCount},
             {"maximumPresentedLag", maximumLag},
             {"maximumIntervalUs", maximumInterval},
+            {"intervalClock", "monotonic"},
             {"intervalLimitUs", intervalLimit},
             {"maximumFrameAgeUs", maximumAge},
             {"ageLimitUs", ageLimit},
@@ -751,6 +760,45 @@ class CoreTests : public QObject {
         session.pause();
         QCOMPARE(session.audioDiagnostics()["bufferedBytes"].toInteger(), qint64(0));
     }
+    void fullHdViewerPreservesOnePixelDetailAndSavedSizes() {
+        QTemporaryDir dir;
+        const QSize fullHd(1920, 1080);
+        QImage pattern(fullHd, QImage::Format_RGB32);
+        pattern.fill(Qt::black);
+        for (int y = 0; y < pattern.height(); ++y)
+            pattern.setPixelColor(960, y, Qt::white);
+        const auto path = dir.filePath("one-pixel-line.bmp");
+        QVERIFY(pattern.save(path));
+
+        auto project = emptyProject();
+        const auto source = probeMedia(path);
+        project.sources.append(source);
+        project.viewer.assignments = {source.id};
+        project.viewer.showOverlay = false;
+        MediaEngine engine;
+        const auto frame = FrameComposer::compose(project, 0, engine);
+        QCOMPARE(frame.size(), fullHd);
+        QCOMPARE(frame.pixelColor(959, 540), QColor(Qt::black));
+        QCOMPARE(frame.pixelColor(960, 540), QColor(Qt::white));
+        QCOMPARE(frame.pixelColor(961, 540), QColor(Qt::black));
+
+        project.viewer.outputSize = {960, 540};
+        const auto small = FrameComposer::compose(project, 0, engine);
+        QCOMPARE(small.size(), QSize(960, 540));
+        QVERIFY(small.pixelColor(480, 270).red() < frame.pixelColor(960, 540).red());
+
+        Project loaded;
+        QString error;
+        auto saved = projectToJson(project);
+        QVERIFY2(projectFromJson(saved, loaded, &error), qPrintable(error));
+        QCOMPARE(loaded.viewer.outputSize, QSize(960, 540));
+        auto viewer = saved.value("viewer").toObject();
+        viewer.remove("width");
+        viewer.remove("height");
+        saved.insert("viewer", viewer);
+        QVERIFY2(projectFromJson(saved, loaded, &error), qPrintable(error));
+        QCOMPARE(loaded.viewer.outputSize, fullHd);
+    }
     void globalPanZoomAndLegacyMigration() {
         QTemporaryDir dir;
         auto p = emptyProject();
@@ -1249,7 +1297,7 @@ class CoreTests : public QObject {
         project.viewer.assignments = {source.id};
         settings.kind = ExportKind::Audio;
         settings.path = dir.filePath("standalone.wav");
-        exportProject(project, settings, {}, {});
+        QCOMPARE(exportProject(project, settings, {}, {}), settings.path);
         const auto wave = probeMedia(settings.path);
         QCOMPARE(wave.info.durationUs, source.info.frameEndUs(96));
         QCOMPARE(engine.sourceAudio(wave, 0, 5000000), decoded);
@@ -1451,21 +1499,28 @@ class CoreTests : public QObject {
             session.setPlaybackRate(rate);
             session.seek(frame, false);
             QVector<AudioPresentation> presentations;
+            QElapsedTimer presentationClock;
+            presentationClock.start();
             auto connection =
                 connect(&session, &ReviewSession::imageReady, &session, [&](const QImage &) {
+                    const auto wallUs = presentationClock.nsecsElapsed() / 1000;
                     const auto state = session.audioDiagnostics();
-                    presentations.append(
-                        {state["playedUs"].toInteger(), state["renderedFrame"].toInteger()});
+                    presentations.append({state["playedUs"].toInteger(),
+                                          state["renderedFrame"].toInteger(), wallUs});
                 });
             session.play();
-            // Observe every delivered image, not a random request/completion phase.
-            // qWait pumps the clock timer and queued render completions independently.
-            QTest::qWait(900);
+            // Use the real GUI event dispatcher throughout the measurement.
+            // Qt 6.8 qWait inserts sleeps up to 10 ms between processEvents calls;
+            // those test-only stalls distort an 8 ms transport timer and presentation cadence.
+            QEventLoop observation;
+            QTimer::singleShot(900, &observation, &QEventLoop::quit);
+            observation.exec();
             disconnect(connection);
+            const auto observationEndWallUs = presentationClock.nsecsElapsed() / 1000;
             const auto state = session.audioDiagnostics();
             const auto window =
                 assessAudioPresentations(presentations, session.project().fps, rate, frame, 100000,
-                                         state["playedUs"].toInteger());
+                                         state["playedUs"].toInteger(), observationEndWallUs);
             // All observations above were made while playing. Pause is cleanup only.
             session.pause();
             qInfo().noquote() << QJsonDocument(state).toJson(QJsonDocument::Compact);
@@ -1490,24 +1545,50 @@ class CoreTests : public QObject {
         const Rational fps{24, 1};
         QVector<AudioPresentation> steady;
         for (qint64 f = 0; f < 22; ++f)
-            steady.append({(f * 1000000 * fps.den + fps.num - 1) / fps.num, f});
-        auto result = assessAudioPresentations(steady, fps, 1, 0, 100000, 900000);
+            steady.append({(f * 1000000 * fps.den + fps.num - 1) / fps.num, f,
+                           (f * 1000000 * fps.den + fps.num - 1) / fps.num});
+        auto result = assessAudioPresentations(steady, fps, 1, 0, 100000, 900000, 900000);
         QVERIFY2(result["error"].toString().isEmpty(), qPrintable(result["error"].toString()));
-        QVector<AudioPresentation> sparse{{0, 0}, {250000, 6}, {500000, 12}, {750000, 18}};
-        result = assessAudioPresentations(sparse, fps, 1, 0, 100000, 900000);
+        QVector<AudioPresentation> sparse{
+            {0, 0, 0}, {250000, 6, 250000}, {500000, 12, 500000}, {750000, 18, 750000}};
+        result = assessAudioPresentations(sparse, fps, 1, 0, 100000, 900000, 900000);
         QCOMPARE(result["maximumPresentedLag"].toInteger(), qint64(0));
         QVERIFY(result["maximumIntervalUs"].toInteger() > result["intervalLimitUs"].toInteger());
         QVERIFY(!result["error"].toString().isEmpty());
         auto frozen = steady;
         frozen.resize(8);
-        result = assessAudioPresentations(frozen, fps, 1, 0, 100000, 900000);
+        result = assessAudioPresentations(frozen, fps, 1, 0, 100000, 900000, 900000);
         QCOMPARE(result["maximumPresentedLag"].toInteger(), qint64(0));
         QVERIFY(result["maximumFrameAgeUs"].toInteger() > result["ageLimitUs"].toInteger());
+        QVERIFY(!result["error"].toString().isEmpty());
+        // One omitted update gives a real 41.667 ms gap at 2x. Quantizing each
+        // audio-clock endpoint to 10 ms makes this same gap appear to be 50 ms.
+        QVector<AudioPresentation> quantized;
+        qint64 maximumAudioGap = 0;
+        for (qint64 frame = 0; frame < 44; ++frame) {
+            if (frame == 17)
+                continue;
+            const auto wall = (frame * 1000000 + 47) / 48;
+            const auto audio = ((wall + 5000) / 10000) * 10000;
+            if (!quantized.isEmpty())
+                maximumAudioGap = std::max(maximumAudioGap, audio - quantized.last().playedUs);
+            quantized.append({audio, frame, wall});
+        }
+        QCOMPARE(maximumAudioGap, qint64(50000));
+        result = assessAudioPresentations(quantized, fps, 2, 0, 100000, 900000, 900000);
+        QVERIFY2(result["error"].toString().isEmpty(), qPrintable(result["error"].toString()));
+        QCOMPARE(result["maximumIntervalUs"].toInteger(), qint64(41666));
+        auto stalled = quantized;
+        for (auto &sample : stalled)
+            if (sample.frame >= 18)
+                sample.wallUs += 8334;
+        result = assessAudioPresentations(stalled, fps, 2, 0, 100000, 900000, 908334);
+        QCOMPARE(result["maximumIntervalUs"].toInteger(), qint64(50000));
         QVERIFY(!result["error"].toString().isEmpty());
         auto late = steady;
         for (auto &sample : late)
             sample.frame -= 2;
-        result = assessAudioPresentations(late, fps, 1, 0, 100000, 900000);
+        result = assessAudioPresentations(late, fps, 1, 0, 100000, 900000, 900000);
         QCOMPARE(result["maximumPresentedLag"].toInteger(), qint64(2));
         QVERIFY(!result["error"].toString().isEmpty());
     }
@@ -1562,16 +1643,16 @@ class CoreTests : public QObject {
         e.sequenceStart = 1001;
         e.overrideAnnotationBackground = true;
         e.annotationBackground = QColor(0, 255, 0, 255);
-        exportProject(p, e, {}, {});
-        auto output = e.path + "/review_1001.png";
+        const auto output = e.path + "/review_1001.png";
+        QCOMPARE(exportProject(p, e, {}, {}), output);
         QVERIFY(QFileInfo::exists(output));
         QCOMPARE(QImage(output).pixelColor(32, 32), QColor(Qt::green));
         e.path = dir.path();
         e.publishSequenceIntoExistingDirectory = true;
         e.frameNumbering = "zero_based";
         e.overrideAnnotationBackground = false;
-        exportProject(p, e, {}, {});
-        auto existing = dir.filePath("review_0000.png");
+        const auto existing = dir.filePath("review_0000.png");
+        QCOMPARE(exportProject(p, e, {}, {}), existing);
         QVERIFY(QFileInfo::exists(existing));
         QCOMPARE(QImage(existing).pixelColor(32, 32), QColor(Qt::red));
         QVERIFY_EXCEPTION_THROWN(exportProject(p, e, {}, {}), std::runtime_error);
@@ -1887,6 +1968,28 @@ class CoreTests : public QObject {
         }
         MediaEngine engine;
         auto render = [&]() { return FrameComposer::compose(p, 0, engine); };
+        p.viewer.mode = ViewerMode::SingleB;
+        p.viewer.activePane = 0;
+        QCOMPARE(render().pixelColor(200, 60), colors[1]);
+        QCOMPARE(displayedAnnotationOwner(p), p.viewer.assignments[1]);
+        QCOMPARE(viewerPaneAt(p.viewer, {.25, .75}), 1);
+        QCOMPARE(viewerPaneRect(p.viewer, 1), QRectF(0, 0, 1, 1));
+        QVERIFY(viewerPaneRect(p.viewer, 0).isEmpty());
+        Project reopened;
+        QString loadError;
+        QVERIFY2(projectFromJson(projectToJson(p), reopened, &loadError), qPrintable(loadError));
+        QCOMPARE(reopened.viewer.mode, ViewerMode::SingleB);
+        QCOMPARE(FrameComposer::compose(reopened, 0, engine), render());
+        ExportSettings pinnedExport;
+        pinnedExport.kind = ExportKind::ImageSequence;
+        pinnedExport.path = dir.filePath("pinned-b");
+        pinnedExport.imageFormat = "bmp";
+        pinnedExport.size = p.viewer.outputSize;
+        pinnedExport.viewerComposition = false;
+        pinnedExport.includeAudio = false;
+        pinnedExport.lastFrame = 0;
+        const auto pinnedImage = exportProject(p, pinnedExport, {}, {});
+        QCOMPARE(QImage(pinnedImage).pixelColor(200, 60), colors[1]);
         p.viewer.mode = ViewerMode::AB;
         p.viewer.activePane = 0;
         QCOMPARE(render().pixelColor(200, 60), colors[0]);

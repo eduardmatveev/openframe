@@ -102,6 +102,7 @@ class MainWindow final : public QMainWindow {
     void setBookmarkFilter(BookmarkFilter);
     void removeEmptyBookmarks();
     void exportDialog();
+    void revealExportedFile(const QString &path);
     void preferencesDialog();
     void projectSettingsDialog();
     void mayaDialog();
@@ -148,6 +149,7 @@ class MainWindow final : public QMainWindow {
     QComboBox *m_bookmarkFilterCombo;
     BookmarkFilter m_bookmarkFilter = BookmarkFilter::All;
     QSlider *m_mix;
+    quint64 m_mixPreviewToken = 0;
     QSlider *m_volume;
     QAction *m_volumeControlAction = nullptr;
     QAction *m_volumePopupAction = nullptr;

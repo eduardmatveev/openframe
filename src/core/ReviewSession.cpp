@@ -117,7 +117,7 @@ QString viewKey(const Project &p, int pane) {
     return owner + ":" + QString::number(pane);
 }
 void rememberViews(Project &p) {
-    p.panZoomByOwner[viewerPaneOwner(p, 0)] = p.viewer.panZoom;
+    p.panZoomByOwner[viewerPaneOwner(p, primaryViewerPane(p.viewer))] = p.viewer.panZoom;
     for (int pane = 0; pane < std::min<qsizetype>(4, p.viewer.transforms.size()); ++pane)
         p.viewTransforms[viewKey(p, pane)] = p.viewer.transforms[pane];
 }
@@ -125,8 +125,8 @@ void restoreView(Project &p, int pane) {
     while (p.viewer.transforms.size() <= pane)
         p.viewer.transforms.append(ViewTransform{});
     p.viewer.transforms[pane] = p.viewTransforms.value(viewKey(p, pane), ViewTransform{});
-    if (pane == 0)
-        p.viewer.panZoom = p.panZoomByOwner.value(viewerPaneOwner(p, 0), PanZoom{});
+    if (pane == primaryViewerPane(p.viewer))
+        p.viewer.panZoom = p.panZoomByOwner.value(viewerPaneOwner(p, pane), PanZoom{});
 }
 QStringList rootedPaths(const QStringList &paths, const QString &root) {
     QStringList result;
@@ -218,10 +218,19 @@ struct ReviewSession::Impl {
     quint64 previewSerial = 0, previewToken = 0;
     std::optional<ViewerSettings> viewerPreview;
     std::optional<Annotation> annotationPreview;
+    struct ComparisonPreview {
+        // The render worker owns these fields for the lifetime of one slider gesture.
+        FrameComposer::ComparisonLayers layers;
+        qint64 frame = -1;
+        quint64 presentation = 0;
+        bool showAnnotations = false;
+    };
+    std::shared_ptr<ComparisonPreview> comparisonPreview;
     void invalidatePreview() {
         previewToken = 0;
         viewerPreview.reset();
         annotationPreview.reset();
+        comparisonPreview.reset();
     }
     QString path;
     QUndoStack undo;
@@ -404,7 +413,7 @@ struct ReviewSession::Impl {
             Qt::QueuedConnection);
     }
     QString owner() const {
-        auto id = project.viewer.assignments.value(0);
+        auto id = project.viewer.assignments.value(primaryViewerPane(project.viewer));
         return project.source(id) || project.timeline(id) ? id : project.activeTimelineId;
     }
     Rational fps() const {
@@ -1473,11 +1482,12 @@ void ReviewSession::assignViewer(int pane, const QString &id) {
         emit error("Invalid viewer assignment");
         return;
     }
-    if (pane == 0)
+    const bool primary = pane == primaryViewerPane(d->project.viewer);
+    if (primary)
         pause();
     mutateProject("Assign viewer", [&](Project &p) {
-        if (pane == 0)
-            p.panZoomByOwner[viewerPaneOwner(p, 0)] = p.viewer.panZoom;
+        if (primary)
+            p.panZoomByOwner[viewerPaneOwner(p, pane)] = p.viewer.panZoom;
         while (p.viewer.transforms.size() <= pane)
             p.viewer.transforms.append(ViewTransform{});
         p.viewTransforms[viewKey(p, pane)] = p.viewer.transforms[pane];
@@ -1485,12 +1495,12 @@ void ReviewSession::assignViewer(int pane, const QString &id) {
             p.viewer.assignments.append(QString{});
         p.viewer.assignments[pane] = id;
         restoreView(p, pane);
-        if (pane == 0) {
+        if (primary) {
             p.rangeIn = 0;
             p.rangeOut = -1;
         }
     });
-    if (pane == 0 && d->autoplay)
+    if (primary && d->autoplay)
         play();
 }
 void ReviewSession::setViewerSettings(const ViewerSettings &settings) {
@@ -1510,6 +1520,22 @@ quint64 ReviewSession::beginViewerPreview() {
     d->viewerPreview = d->project.viewer;
     return d->previewToken;
 }
+bool ReviewSession::previewComparisonMix(quint64 token, double amount) {
+    if (!token || token != d->previewToken || !d->viewerPreview ||
+        !std::isfinite(amount) || amount < 0 || amount > 1)
+        return false;
+    auto &viewer = *d->viewerPreview;
+    if (viewer.mode == ViewerMode::Blend)
+        viewer.opacity = amount;
+    else if (viewer.mode == ViewerMode::Wipe)
+        viewer.wipe = amount;
+    else
+        return false;
+    if (!d->comparisonPreview)
+        d->comparisonPreview = std::make_shared<Impl::ComparisonPreview>();
+    requestFrame();
+    return true;
+}
 bool ReviewSession::previewViewerSettings(quint64 token, const ViewerSettings &settings) {
     if (!token || token != d->previewToken)
         return false;
@@ -1518,6 +1544,7 @@ bool ReviewSession::previewViewerSettings(quint64 token, const ViewerSettings &s
         emit error(message);
         return false;
     }
+    d->comparisonPreview.reset();
     d->viewerPreview = settings;
     requestFrame();
     return true;
@@ -1530,6 +1557,7 @@ bool ReviewSession::previewAnnotation(quint64 token, const Annotation &annotatio
         emit error(message);
         return false;
     }
+    d->comparisonPreview.reset();
     d->annotationPreview = annotation;
     requestFrame();
     return true;
@@ -1667,22 +1695,33 @@ void ReviewSession::requestFrame(bool scrub) {
     const bool emptyFrame = d->delayActive && d->project.loopHoldEmpty;
     d->enqueue(
         [this, epoch, presentation, snapshot = std::move(snapshot), frame,
-         emptyFrame](MediaEngine &engine) {
+         emptyFrame, comparison = d->comparisonPreview](MediaEngine &engine) {
             if (d->stop || epoch != d->renderEpoch)
                 return;
             try {
                 QElapsedTimer operationClock;
                 operationClock.start();
-                MediaOperation operation(engine, [this, epoch, presentation, operationClock] {
+                MediaOperation operation(engine, [this, epoch, presentation, operationClock,
+                                                  mixing = bool(comparison)] {
                     return d->stop || presentation != d->presentationEpoch ||
-                           (epoch != d->renderEpoch && operationClock.elapsed() >= 80);
+                           (!mixing && epoch != d->renderEpoch && operationClock.elapsed() >= 80);
                 });
                 QImage image;
                 if (emptyFrame) {
                     image = QImage(snapshot.viewer.outputSize, QImage::Format_RGBA8888);
                     image.fill(snapshot.viewer.background);
-                } else
-                    image = FrameComposer::compose(snapshot, frame, engine);
+                } else {
+                    if (comparison && (comparison->frame != frame ||
+                                       comparison->presentation != presentation ||
+                                       comparison->showAnnotations != snapshot.viewer.showAnnotations)) {
+                        comparison->layers = {};
+                        comparison->frame = frame;
+                        comparison->presentation = presentation;
+                        comparison->showAnnotations = snapshot.viewer.showAnnotations;
+                    }
+                    image = FrameComposer::compose(snapshot, frame, engine, {}, true,
+                                                   comparison ? &comparison->layers : nullptr);
+                }
 #ifdef OPENFRAME_TESTING
                 if (auto hook = std::exchange(d->beforePresentationTestHook, {}))
                     hook();
@@ -1809,10 +1848,10 @@ void ReviewSession::tick() {
         requestFrame();
     }
 }
-void ReviewSession::exportAsync(const ExportSettings &settings) {
+bool ReviewSession::exportAsync(const ExportSettings &settings) {
     if (d->exporting) {
         emit error("An export is already running");
-        return;
+        return false;
     }
     if (d->exportThread.joinable())
         d->exportThread.join();
@@ -1822,8 +1861,9 @@ void ReviewSession::exportAsync(const ExportSettings &settings) {
     d->exportThread = std::jthread([this, snapshot = std::move(snapshot), settings]() {
         bool ok = false;
         QString message;
+        QString publishedFile;
         try {
-            exportProject(
+            publishedFile = exportProject(
                 snapshot, settings, [this]() { return d->stop || d->exportCancel; },
                 [this](int value) {
                     d->post([value](ReviewSession *s) { emit s->exportProgress(value); });
@@ -1833,11 +1873,12 @@ void ReviewSession::exportAsync(const ExportSettings &settings) {
         } catch (const std::exception &e) {
             message = QString::fromUtf8(e.what());
         }
-        d->post([ok, message](ReviewSession *s) {
+        d->post([ok, message, publishedFile](ReviewSession *s) {
             s->d->exporting = false;
-            emit s->exportFinished(ok, message);
+            emit s->exportFinished(ok, message, publishedFile);
         });
     });
+    return true;
 }
 void ReviewSession::cancelExport() {
     d->exportCancel = true;

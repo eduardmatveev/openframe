@@ -10,10 +10,10 @@ MAX_SEQUENCE_FRAMES = 100000
 class CaptureSettings:
     format_name: str = "avi"
     compression: Optional[str] = None
-    width: int = 960
-    height: int = 540
+    width: int = 1920
+    height: int = 1080
     percent: int = 100
-    quality: int = 70
+    quality: int = 100
     padding: int = 4
     show_ornaments: bool = False
     off_screen: bool = True

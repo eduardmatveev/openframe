@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QIcon>
 #include <QFont>
 #include <QFontDatabase>
 #include <QRawFont>
@@ -76,7 +77,8 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName("OpenFrame");
     QCoreApplication::setApplicationName("OpenFrame");
-    QCoreApplication::setApplicationVersion("0.4.1");
+    QCoreApplication::setApplicationVersion("0.4.4");
+    app.setWindowIcon(QIcon(QStringLiteral(":/openframe/player.svg")));
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QCommandLineParser parser;
     parser.setApplicationDescription("Independent local animation review player");

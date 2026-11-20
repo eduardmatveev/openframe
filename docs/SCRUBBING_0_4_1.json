@@ -1,0 +1,349 @@
+{
+  "version": "0.4.1",
+  "recordedUtc": "2026-11-20T12:38:49.811996+00:00",
+  "executableSha256": "18e2e79b35bb5adda6ef72a1c143f67a334eb0cbae40018a3e2b08aad0c56e43",
+  "ctestSuitesPassed": 7,
+  "ctestSuitesTotal": 7,
+  "manifestFilesVerified": 47,
+  "userProjectAndMediaUnchanged": true,
+  "referenceParity": "UNVERIFIED",
+  "finalUserProjectPaint": {
+    "devicePixelRatio": 1,
+    "distinctFramesPaintedDuringDrag": 54,
+    "finalPaintedFrame": 60,
+    "fixture": "authorized user project (read only)",
+    "imageReadyToPaintP95Ms": 2.5182,
+    "measurement": "slider QMouseEvent to queued completion after normal Viewer QEvent::Paint; no grab",
+    "mouseHandlerP95Ms": 0.3708,
+    "mouseMoves": 94,
+    "paintEvents": 56,
+    "platform": "offscreen",
+    "releaseToFinalPaintMs": 34.4929,
+    "requestToPaintP50Ms": 34.3248,
+    "requestToPaintP95Ms": 49.679
+  },
+  "coreMeasurements": {
+    "version": "0.4.1-candidate",
+    "comparisonPolicy": "Standalone seeks use identical targets/order and timing. Repeated-frame input is identical (45 events at 4 ms). Rapid drag permits bounded presentation of previously requested exact frames, and adds a hard seek on release; its final-settle numbers are reported separately, not as an identical before/after experiment. All presented images were compared locally with the exact requested ordinal; no user pixels/audio were saved.",
+    "fixtures1080": {
+      "size": "1920x1080",
+      "rate": "24/1",
+      "frames": 144,
+      "gops": [
+        48,
+        240
+      ],
+      "generator": "ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=24:duration=6 -f lavfi -i sine=frequency=440:sample_rate=48000:duration=6 -c:v libx264 -preset fast -crf 20 -threads 4 -g GOP -keyint_min GOP -sc_threshold 0 -bf 3 -x264-params b-adapt=0:open-gop=0 -pix_fmt yuv420p -c:a aac -shortest scrub1080-gopGOP.mp4"
+    },
+    "limits": [
+      "The 80 ms stale-operation threshold is cooperative at decode boundaries, not a hard OS latency deadline. A single decoder call, raster read or color conversion can finish later.",
+      "Interframe codecs still require decoding from a preceding keyframe for an uncached backward/random request. No keyframe substitution or approximate frame is presented.",
+      "Core imageReady latency is distinct from QWidget Paint latency; the UI agent measured normal Paint separately."
+    ],
+    "validation": {
+      "benchmark": "14 passed, 0 failed, 0 skipped",
+      "targetedExisting": "8 passed, 0 failed, 0 skipped",
+      "hardSeekAndCancel": "4 passed, 0 failed, 0 skipped",
+      "logs": [
+        "scrub-fixed-all.txt",
+        "scrub-existing-regressions.txt",
+        "scrub-regressions.txt",
+        "scrub-user-baseline.txt",
+        "scrub-synthetic-baseline.txt"
+      ]
+    },
+    "cases": [
+      {
+        "case": "sync24-lossless.mkv-silent",
+        "sameInputStandalone": {
+          "beforeP50Ms": 12.7863,
+          "afterP50Ms": 16.8147,
+          "beforeP95Ms": 14.5895,
+          "afterP95Ms": 18.1192
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 204.1813,
+          "afterFirstMs": 20.2993
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 34,
+          "requestAgeP95Ms": 22.112499999999997,
+          "finalSettleP50Ms": 21.113200000000006,
+          "finalSettleP95Ms": 23.1807,
+          "maxPendingJobs": 2,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "sync24-lossless.mkv-audio",
+        "sameInputStandalone": {
+          "beforeP50Ms": 13.3266,
+          "afterP50Ms": 16.5642,
+          "beforeP95Ms": 16.1708,
+          "afterP95Ms": 18.5
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 201.573,
+          "afterFirstMs": 20.4411
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 35,
+          "requestAgeP95Ms": 21.064400000000006,
+          "finalSettleP50Ms": 18.3108,
+          "finalSettleP95Ms": 21.693000000000012,
+          "maxPendingJobs": 3,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "sync24-vfr-audio.mkv-silent",
+        "sameInputStandalone": {
+          "beforeP50Ms": 14.4752,
+          "afterP50Ms": 16.1872,
+          "beforeP95Ms": 16.9375,
+          "afterP95Ms": 20.8586
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 202.9004,
+          "afterFirstMs": 19.5662
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 35,
+          "requestAgeP95Ms": 22.705700000000007,
+          "finalSettleP50Ms": 20.150300000000016,
+          "finalSettleP95Ms": 23.975099999999998,
+          "maxPendingJobs": 2,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "sync24-vfr-audio.mkv-audio",
+        "sameInputStandalone": {
+          "beforeP50Ms": 14.4769,
+          "afterP50Ms": 14.5023,
+          "beforeP95Ms": 19.8879,
+          "afterP95Ms": 19.1563
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 201.6224,
+          "afterFirstMs": 18.2019
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 37,
+          "requestAgeP95Ms": 20.09020000000001,
+          "finalSettleP50Ms": 16.590100000000007,
+          "finalSettleP95Ms": 19.861500000000007,
+          "maxPendingJobs": 3,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "sync24-bframes.mp4-silent",
+        "sameInputStandalone": {
+          "beforeP50Ms": 14.8255,
+          "afterP50Ms": 15.5491,
+          "beforeP95Ms": 19.7377,
+          "afterP95Ms": 20.5657
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 197.8683,
+          "afterFirstMs": 20.6727
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 37,
+          "requestAgeP95Ms": 20.8634,
+          "finalSettleP50Ms": 19.920000000000016,
+          "finalSettleP95Ms": 24.136799999999994,
+          "maxPendingJobs": 2,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "sync24-bframes.mp4-audio",
+        "sameInputStandalone": {
+          "beforeP50Ms": 14.6816,
+          "afterP50Ms": 15.8196,
+          "beforeP95Ms": 18.0792,
+          "afterP95Ms": 20.7949
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 195.2306,
+          "afterFirstMs": 18.5375
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 37,
+          "requestAgeP95Ms": 20.7611,
+          "finalSettleP50Ms": 20.67659999999998,
+          "finalSettleP95Ms": 20.7611,
+          "maxPendingJobs": 3,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "scrub1080-gop48.mp4-silent",
+        "sameInputStandalone": {
+          "beforeP50Ms": 22.3513,
+          "afterP50Ms": 27.9301,
+          "beforeP95Ms": 76.621,
+          "afterP95Ms": 79.391
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 202.6145,
+          "afterFirstMs": 28.445
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 11,
+          "requestAgeP95Ms": 77.24599999999998,
+          "finalSettleP50Ms": 45.97819999999999,
+          "finalSettleP95Ms": 77.24599999999998,
+          "maxPendingJobs": 2,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "scrub1080-gop48.mp4-audio",
+        "sameInputStandalone": {
+          "beforeP50Ms": 20.8771,
+          "afterP50Ms": 22.6528,
+          "beforeP95Ms": 68.0555,
+          "afterP95Ms": 65.6238
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 205.6224,
+          "afterFirstMs": 26.7978
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 13,
+          "requestAgeP95Ms": 73.196,
+          "finalSettleP50Ms": 43.0043,
+          "finalSettleP95Ms": 73.196,
+          "maxPendingJobs": 3,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "scrub1080-gop240.mp4-silent",
+        "sameInputStandalone": {
+          "beforeP50Ms": 23.706,
+          "afterP50Ms": 24.8526,
+          "beforeP95Ms": 157.0658,
+          "afterP95Ms": 115.6523
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 214.9345,
+          "afterFirstMs": 22.9165
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 12,
+          "requestAgeP95Ms": 117.73449999999997,
+          "finalSettleP50Ms": 99.20349999999999,
+          "finalSettleP95Ms": 117.73449999999997,
+          "maxPendingJobs": 2,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "scrub1080-gop240.mp4-audio",
+        "sameInputStandalone": {
+          "beforeP50Ms": 24.0181,
+          "afterP50Ms": 25.651,
+          "beforeP95Ms": 154.076,
+          "afterP95Ms": 119.4564
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 218.2484,
+          "afterFirstMs": 30.0842
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 13,
+          "requestAgeP95Ms": 114.09440000000001,
+          "finalSettleP50Ms": 100.25809999999998,
+          "finalSettleP95Ms": 114.09440000000001,
+          "maxPendingJobs": 3,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "user-project-silent",
+        "sameInputStandalone": {
+          "beforeP50Ms": 21.6254,
+          "afterP50Ms": 24.3022,
+          "beforeP95Ms": 24.7749,
+          "afterP95Ms": 26.9333
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 211.0517,
+          "afterFirstMs": 29.2733
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 23,
+          "requestAgeP95Ms": 30.22829999999999,
+          "finalSettleP50Ms": 27.6473,
+          "finalSettleP95Ms": 31.605400000000003,
+          "maxPendingJobs": 2,
+          "wrongFrames": 0
+        }
+      },
+      {
+        "case": "user-project-audio",
+        "sameInputStandalone": {
+          "beforeP50Ms": 26.3075,
+          "afterP50Ms": 23.8665,
+          "beforeP95Ms": 29.7836,
+          "afterP95Ms": 28.1721
+        },
+        "sameInputRepeatedFrame": {
+          "beforeFirstMs": 227.7732,
+          "afterFirstMs": 26.8474
+        },
+        "newRapidReleasePolicy": {
+          "displayedExactRequestedFrames": 22,
+          "requestAgeP95Ms": 32.16290000000001,
+          "finalSettleP50Ms": 27.736499999999978,
+          "finalSettleP95Ms": 31.621199999999988,
+          "maxPendingJobs": 2,
+          "wrongFrames": 0
+        }
+      }
+    ]
+  },
+  "limits": [
+    "Qt Paint measured offscreen, not physical display latency. UI audio scrub disabled; nominal mouse intervals are not measured hardware input frequency.",
+    "Core baseline/fixed reports precede final sequential-next-frame fast-path restoration; final UI probe and full CTest run after it.",
+    "Original audio-clock 50ms failure has no recoverable wall-time measurement. Limits retained; cadence now uses monotonic timestamps and a normal event loop."
+  ],
+  "evidence": [
+    {
+      "path": "test-results/build-scrubbing-0.4.1-verified.log",
+      "sha256": "d2ca1a617e337ea9985f180663d8fb826b59ea6d080f4040eae1831a2641e76c"
+    },
+    {
+      "path": "test-results/ui-scrub-final-user.txt",
+      "sha256": "e4c8428912779bd5817257388a1cad43008ca93fb9d81007aaff1a7e8c039932"
+    },
+    {
+      "path": "test-results/scrub-latency-report.json",
+      "sha256": "d5356c74834b5211ba315b7b0fff52be1b209d4f14095486858327ed233b1915"
+    },
+    {
+      "path": "test-results/ui-scrub-validation-summary.json",
+      "sha256": "9c41dcc8419ba8e3f7996a098f26bfdd8c44c934d2215cf50fde8ecba781d50e"
+    },
+    {
+      "path": "test-results/scrub-regressions.txt",
+      "sha256": "545cb1350e611e6f5b48bcc348fc600990643a4f8358f34d5c236def95f4ef8f"
+    },
+    {
+      "path": "test-results/scrub-core-full-diagnostic.txt",
+      "sha256": "6692565933e914132459fa976772dfbf493d027691c4650c3718dd47ba504877"
+    },
+    {
+      "path": "test-results/audio-cadence-diagnosis.json",
+      "sha256": "fcfb3b7fd67e463ca7271cf9a07b0b11c0343dfa11323556efe42be15ebf5f62"
+    },
+    {
+      "path": "test-results/audio-cadence-real-dispatcher-smoke.txt",
+      "sha256": "3b004cd73c2109a8f763214733e16eda7c37c7b4085cba6fc1ecb86116531a83"
+    }
+  ]
+}

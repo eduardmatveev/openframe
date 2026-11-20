@@ -144,8 +144,7 @@ struct ColorPlan {
     bool preserve=false;
 };
 QString exportOwner(const Project &p,const ExportSettings &s) {
-    auto id=s.timelineId.isEmpty()?p.viewer.assignments.value(0):s.timelineId;
-    return id.isEmpty()?p.activeTimelineId:id;
+    return s.timelineId.isEmpty() ? viewerPaneOwner(p, primaryViewerPane(p.viewer)) : s.timelineId;
 }
 ColorPlan colorPlan(const Project &p,const ExportSettings &s) {
     ColorPlan plan;
@@ -366,16 +365,15 @@ bool validateExportSettings(const Project &project,const ExportSettings &setting
         return true;
     }catch(const std::exception &e){if(error)*error=QString::fromUtf8(e.what());return false;}
 }
-void exportProject(const Project &project, const ExportSettings &requested,
-                   const CancelCheck &cancelled, const ProgressCallback &progress) {
+QString exportProject(const Project &project, const ExportSettings &requested,
+                      const CancelCheck &cancelled, const ProgressCallback &progress) {
     auto settings = requested;
     const auto color=colorPlan(project,settings);
     Project snapshot = project;
     auto timelineId =
         settings.timelineId.isEmpty() ? snapshot.activeTimelineId : settings.timelineId;
     QString sourceOwnerId;
-    const auto primary =
-        settings.timelineId.isEmpty() ? snapshot.viewer.assignments.value(0) : settings.timelineId;
+    const auto primary = exportOwner(snapshot, settings);
     if (!primary.isEmpty()) {
         if (snapshot.timeline(primary))
             timelineId = primary;
@@ -471,6 +469,7 @@ void exportProject(const Project &project, const ExportSettings &requested,
                          : destination + ".partial-" + newId();
         if (!QDir().mkpath(stage))
             throw std::runtime_error("Cannot create image sequence staging directory");
+        QString firstPublishedImage;
         try {
             for (qint64 i = 0; i < count; ++i) {
                 cancel(cancelled);
@@ -485,14 +484,15 @@ void exportProject(const Project &project, const ExportSettings &requested,
                 if (settings.frameNumbering == "match_frame") {
                     number = displayFrameNumber(snapshot, annotationOwner, selectedFrames[i]);
                 }
-                auto name =
-                    QDir(stage).filePath(QString("%1_%2.%3")
-                                             .arg(settings.sequenceBaseName)
-                                             .arg(number, settings.sequencePadding, 10, QChar('0'))
-                                             .arg(format));
-                QImageWriter writer(name, format.toUtf8());
+                const auto name = QString("%1_%2.%3")
+                                      .arg(settings.sequenceBaseName)
+                                      .arg(number, settings.sequencePadding, 10, QChar('0'))
+                                      .arg(format);
+                QImageWriter writer(QDir(stage).filePath(name), format.toUtf8());
                 if (!writer.write(image))
                     throw std::runtime_error(writer.errorString().toStdString());
+                if (i == 0)
+                    firstPublishedImage = QDir(destination).filePath(name);
                 if (progress)
                     progress(static_cast<int>((i + 1) * 95 / count));
             }
@@ -514,7 +514,7 @@ void exportProject(const Project &project, const ExportSettings &requested,
             QDir(stage).removeRecursively();
             throw;
         }
-        return;
+        return firstPublishedImage;
     }
     Output out;
     auto utf8 = destination.toUtf8();
@@ -776,5 +776,6 @@ void exportProject(const Project &project, const ExportSettings &requested,
     out.committed = true;
     if (progress)
         progress(100);
+    return destination;
 }
 } // namespace openframe

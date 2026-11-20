@@ -520,15 +520,21 @@ const Timeline *Project::timeline(const QString &id) const {
 const Timeline *Project::activeTimeline() const {
     return timeline(activeTimelineId);
 }
+bool isSinglePaneMode(ViewerMode mode) {
+    return mode == ViewerMode::Single || mode == ViewerMode::SingleB || mode == ViewerMode::AB;
+}
+int primaryViewerPane(const ViewerSettings &v) {
+    return v.mode == ViewerMode::SingleB ? 1 : 0;
+}
 int activeViewerPane(const ViewerSettings &v) {
-    return v.mode == ViewerMode::Single
-               ? 0
-               : std::clamp(v.activePane, 0, v.mode == ViewerMode::Grid ? 3 : 1);
+    if (v.mode == ViewerMode::Single || v.mode == ViewerMode::SingleB)
+        return primaryViewerPane(v);
+    return std::clamp(v.activePane, 0, v.mode == ViewerMode::Grid ? 3 : 1);
 }
 QRectF viewerPaneRect(const ViewerSettings &v, int pane) {
     if (pane < 0 || pane > (v.mode == ViewerMode::Grid ? 3 : 1))
         return {};
-    if (v.mode == ViewerMode::Single || v.mode == ViewerMode::AB)
+    if (isSinglePaneMode(v.mode))
         return pane == activeViewerPane(v) ? QRectF(0, 0, 1, 1) : QRectF{};
     if (v.mode == ViewerMode::Split)
         return v.splitVertical ? QRectF(pane * .5, 0, .5, 1) : QRectF(0, pane * .5, 1, .5);
@@ -562,11 +568,8 @@ qint64 displayedAnnotationFrame(const Project &p, qint64 frame) {
 }
 qint64 frameDisplayOffset(const Project &p, const QString &ownerId) {
     auto id = ownerId;
-    if (id.isEmpty()) {
-        id = p.viewer.assignments.value(0);
-        if (id.isEmpty())
-            id = p.activeTimelineId;
-    }
+    if (id.isEmpty())
+        id = viewerPaneOwner(p, primaryViewerPane(p.viewer));
     if (auto source = p.source(id))
         return source->timecodeOffsetEnabled ? source->timecodeOffset : 1;
     if (auto timeline = p.timeline(id))
@@ -1157,7 +1160,8 @@ bool projectFromJson(const QJsonObject &o, Project &out, QString *error, const Q
             p.annotations.append(a);
         }
         auto v = o["viewer"].toObject();
-        p.viewer.mode = static_cast<ViewerMode>(std::clamp(v["mode"].toInt(), 0, 5));
+        p.viewer.mode = static_cast<ViewerMode>(
+            std::clamp(v["mode"].toInt(), 0, static_cast<int>(ViewerMode::SingleB)));
         for (auto id : v["assignments"].toArray())
             p.viewer.assignments.append(id.toString());
         p.viewer.activePane = std::clamp(v["activePane"].toInt(), 0, 3);
@@ -1196,7 +1200,7 @@ bool projectFromJson(const QJsonObject &o, Project &out, QString *error, const Q
                         PanZoom{std::clamp(it->zoom, .01, 64.0), it->pan, true};
         }
         if (!v.contains("panZoom"))
-            p.panZoomByOwner[viewerPaneOwner(p, 0)] = p.viewer.panZoom;
+            p.panZoomByOwner[viewerPaneOwner(p, primaryViewerPane(p.viewer))] = p.viewer.panZoom;
         p.viewer.showOverlay = v["overlay"].toBool(true);
         p.viewer.showAnnotations = v["annotations"].toBool(true);
         p.viewer.holdAnnotations = v["holdAnnotations"].toBool();
@@ -1218,8 +1222,9 @@ bool projectFromJson(const QJsonObject &o, Project &out, QString *error, const Q
         p.viewer.ghostByAnnotations = v["ghostByAnnotations"].toBool();
         p.viewer.ghostPreviousTint = QColor(v["ghostPreviousTint"].toString("#ffff5a5a"));
         p.viewer.ghostNextTint = QColor(v["ghostNextTint"].toString("#ff5aa0ff"));
-        p.viewer.outputSize = {std::clamp(v["width"].toInt(960), 16, 8192),
-                               std::clamp(v["height"].toInt(540), 16, 8192)};
+        p.viewer.outputSize = {
+            std::clamp(v["width"].toInt(ViewerSettings::DefaultOutputSize.width()), 16, 8192),
+            std::clamp(v["height"].toInt(ViewerSettings::DefaultOutputSize.height()), 16, 8192)};
         out = std::move(p);
         return true;
     } catch (const std::exception &e) {

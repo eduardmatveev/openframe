@@ -9,6 +9,7 @@
 #include <QStatusBar>
 #include <QSettings>
 #include <QSignalSpy>
+#include <QSlider>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
 #include <QPlainTextEdit>
@@ -25,6 +26,7 @@
 #include <QColorSpace>
 #include <QDialogButtonBox>
 #include <QTabWidget>
+#include <QTreeWidget>
 #include <memory>
 #include <cmath>
 #include "core/ReviewSession.h"
@@ -34,6 +36,7 @@
 #include "ui/TimelineWidget.h"
 #include "ui/Theme.h"
 #include "ui/LocalFileDialog.h"
+#include "ui/LocalFileDialog_p.h"
 #include "ui/NotesCsvDialog.h"
 #include "ui/OverlayDialog.h"
 #include "ui/BookmarkFilter.h"
@@ -41,6 +44,7 @@
 #include "core/ViewerGeometry.h"
 #include "media/AnnotationRenderer.h"
 #include "integration/ApiServer.h"
+#include "integration/LocalPathPolicy.h"
 using namespace openframe;
 // Observe normal QWidget paints without forcing a grab/repaint. The queued callback
 // runs after the paint event returns; it is not a display-compositor/vblank timestamp.
@@ -113,6 +117,9 @@ class UiTests final : public QObject {
     }
   private slots:
     void initTestCase() {
+        // Qt event-driven tests exercise the explicit fallback, including on the
+        // Windows platform. They do not automate or validate Windows Shell UI.
+        QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
         QCoreApplication::setOrganizationName("OpenFrameTests");
         QCoreApplication::setApplicationName("UiTests");
         QSettings::setDefaultFormat(QSettings::IniFormat);
@@ -143,6 +150,82 @@ class UiTests final : public QObject {
         m_session.reset();
         QCoreApplication::processEvents();
     }
+    void layoutIconsMatchPaneArrangement() {
+        auto horizontal = command("split");
+        auto vertical = command("splitVertical");
+        auto wipe = command("wipe");
+        QVERIFY(horizontal && vertical && wipe);
+        auto menuImage = [](QAction *action) {
+            return action->icon().pixmap(QSize(16, 16), 1.0).toImage();
+        };
+        const auto horizontalIcon = menuImage(horizontal);
+        const auto verticalIcon = menuImage(vertical);
+        const auto wipeIcon = menuImage(wipe);
+        QCOMPARE(horizontalIcon.size(), QSize(16, 16));
+        QCOMPARE(verticalIcon.size(), horizontalIcon.size());
+        QCOMPARE(wipeIcon.size(), horizontalIcon.size());
+        // Sample the interior, away from the common outline, at actual menu size.
+        QVERIFY(horizontalIcon.pixelColor(6, 8).alpha() > horizontalIcon.pixelColor(8, 6).alpha());
+        QVERIFY(verticalIcon.pixelColor(8, 6).alpha() > verticalIcon.pixelColor(6, 8).alpha());
+        QVERIFY(wipeIcon.pixelColor(9, 5).alpha() > wipeIcon.pixelColor(5, 5).alpha());
+        QVERIFY(wipeIcon.pixelColor(6, 10).alpha() > wipeIcon.pixelColor(11, 10).alpha());
+
+        horizontal->trigger();
+        QCOMPARE(viewerPaneRect(m_session->project().viewer, 1), QRectF(.5, 0, .5, 1));
+        vertical->trigger();
+        QCOMPARE(viewerPaneRect(m_session->project().viewer, 1), QRectF(0, .5, 1, .5));
+        wipe->trigger();
+        QCOMPARE(m_session->project().viewer.mode, ViewerMode::Wipe);
+
+        auto singleB = command("singleB");
+        auto active = command("ab");
+        QVERIFY(singleB && active);
+        QCOMPARE(active->text(), QString("Active"));
+        singleB->trigger();
+        QCOMPARE(activeViewerPane(m_session->project().viewer), 1);
+        command("rotateCW")->trigger();
+        QCOMPARE(m_session->project().viewer.transforms[1].rotation, 90);
+        QCOMPARE(m_session->project().viewer.transforms[0].rotation, 0);
+        active->trigger();
+        QCOMPARE(activeViewerPane(m_session->project().viewer), 0);
+    }
+    void transparencyUpdatesBeforeSliderRelease() {
+        const QString sourceA = m_session->project().sources.first().id;
+        const QString path = m_temp.filePath("white-comparison.bmp");
+        QImage white(1920, 1080, QImage::Format_RGB32);
+        white.fill(Qt::white);
+        QVERIFY(white.save(path));
+        m_session->importImageSequence({path}, {24, 1});
+        QTRY_COMPARE_WITH_TIMEOUT(m_session->project().sources.size(), 2, 10000);
+        const QString sourceB = m_session->project().sources.last().id;
+        m_session->assignViewer(0, sourceA);
+        m_session->assignViewer(1, sourceB);
+        auto settings = m_session->project().viewer;
+        settings.mode = ViewerMode::Blend;
+        settings.opacity = 0;
+        settings.wipe = .31;
+        settings.showOverlay = false;
+        m_session->setViewerSettings(settings);
+        auto slider = m_window->findChild<QSlider *>("comparisonMix");
+        QVERIFY(slider && slider->isEnabled());
+        auto red = [&] { return m_session->displayImage().pixelColor(960, 540).red(); };
+        QTRY_VERIFY_WITH_TIMEOUT(std::abs(red() - 62) <= 1, 5000);
+        const int history = m_session->undoStack()->index();
+        slider->setSliderDown(true);
+        slider->setValue(25);
+        QTRY_VERIFY_WITH_TIMEOUT(std::abs(red() - 110) <= 2, 5000);
+        slider->setValue(75);
+        QTRY_VERIFY_WITH_TIMEOUT(std::abs(red() - 207) <= 2, 5000);
+        QVERIFY(slider->isSliderDown());
+        QCOMPARE(m_session->project().viewer.opacity, 0.0);
+        QCOMPARE(m_session->undoStack()->index(), history);
+        slider->setSliderDown(false);
+        QCOMPARE(m_session->undoStack()->index(), history + 1);
+        QCOMPARE(m_session->project().viewer.opacity, .75);
+        QCOMPARE(m_session->project().viewer.wipe, .31);
+        m_session->undoStack()->undo();
+        QCOMPARE(m_session->project().viewer.opacity, 0.0);
+    }
     void commandsOperateOnSession() {
         QVERIFY(command("stepForward"));
         command("stepForward")->trigger();
@@ -163,7 +246,7 @@ class UiTests final : public QObject {
         command("grid")->trigger();
         QCOMPARE(m_session->project().viewer.mode, ViewerMode::Grid);
         command("splitVertical")->trigger();
-        QVERIFY(m_session->project().viewer.splitVertical);
+        QCOMPARE(viewerPaneRect(m_session->project().viewer, 1), QRectF(0, .5, 1, .5));
         command("overlayGrid")->trigger();
         QCOMPARE(m_session->project().viewer.overlay.type, OverlayType::Grid);
         command("toggleOverlay")->trigger();
@@ -1453,6 +1536,7 @@ class UiTests final : public QObject {
         QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
         QCOMPARE(projectToJson(m_session->project()), before);
         QVERIFY(!m_session->exporting());
+        QCOMPARE(finished.first().at(2).toString(), firstPath);
         QImage exported(firstPath);
         QCOMPARE(exported.size(), QSize(160, 90));
         QVERIFY(exported.pixelColor(80, 45) != QColor(Qt::magenta));
@@ -1497,6 +1581,7 @@ class UiTests final : public QObject {
         QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 10000);
         QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
         QCOMPARE(projectToJson(m_session->project()), before);
+        QCOMPARE(finished.first().at(2).toString(), target);
         const auto output = probeMedia(target);
         QCOMPARE(output.info.frameCount(), 12);
         QCOMPARE(output.info.fps.value(), 12.0);
@@ -1576,6 +1661,130 @@ class UiTests final : public QObject {
         QVERIFY(label->text().isEmpty());
         m_window->statusBar()->clearMessage();
         QCOMPARE(label->text(), QString("Frame 4"));
+    }
+    void fileDialogRoutingAndPathPolicy() {
+        using namespace fileDialogDetail;
+#ifdef Q_OS_WIN
+        QVERIFY(useNativeWindowsDialogs("windows", false));
+#else
+        QVERIFY(!useNativeWindowsDialogs("windows", false));
+#endif
+        QVERIFY(!useNativeWindowsDialogs("windows", true));
+        QVERIFY(!useNativeWindowsDialogs("offscreen", false));
+        QVERIFY(!useNativeWindowsDialogs("minimal", false));
+        const auto folder = QDir(m_temp.path()).filePath(QString::fromUtf8("Диалоги с пробелом"));
+        QVERIFY(QDir().mkpath(folder));
+        const auto input = QDir(folder).filePath(QString::fromUtf8("тест.txt"));
+        QFile file(input);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("synthetic");
+        file.close();
+        const auto output = QDir(folder).filePath("new.txt");
+        QCOMPARE(safeInitialPath(input), input);
+        QCOMPARE(safeInitialPath(output), output);
+        QCOMPARE(safeInitialPath(output, true), folder);
+        QCOMPARE(safeInitialPath(folder), folder);
+        for (const auto &invalid :
+             {QString("//example.invalid/share/file.txt"),
+              QString("https://example.invalid/file.txt"), folder + "/../file.txt"}) {
+            const auto safe = safeInitialPath(invalid);
+            QVERIFY(!safe.isEmpty());
+            QCOMPARE(LocalPathPolicy::validateDirectory(safe), safe);
+            QString error;
+            for (auto mode : {Selection::OpenFile, Selection::OpenFiles, Selection::SaveFile,
+                              Selection::Directory}) {
+                QVERIFY(validateSelection({invalid}, mode, &error).isEmpty());
+                QVERIFY(!error.isEmpty());
+            }
+            QVERIFY(validateSelection({input, invalid}, Selection::OpenFiles, &error).isEmpty());
+            QVERIFY(!error.isEmpty());
+        }
+        QString error;
+        QCOMPARE(validateSelection({input}, Selection::OpenFile, &error), QStringList{input});
+        QVERIFY(error.isEmpty());
+        QCOMPARE(validateSelection({output}, Selection::SaveFile, &error), QStringList{output});
+        QCOMPARE(validateSelection({folder}, Selection::Directory, &error), QStringList{folder});
+        QVERIFY(validateSelection({output}, Selection::OpenFile, &error).isEmpty());
+        QVERIFY(validateSelection({folder}, Selection::OpenFile, &error).isEmpty());
+        QVERIFY(validateSelection({input}, Selection::Directory, &error).isEmpty());
+        QVERIFY(validateSelection({input, input}, Selection::OpenFile, &error).isEmpty());
+        QVERIFY(validateSelection({}, Selection::OpenFiles, &error).isEmpty());
+        QVERIFY(error.isEmpty());
+        QVERIFY(validateSelection({QString()}, Selection::SaveFile, &error).isEmpty());
+        QVERIFY(error.isEmpty());
+        QVERIFY(!QFileInfo::exists(output));
+    }
+    void fileDialogFallbackSelectionAndCancel() {
+        const auto before = projectToJson(m_session->project());
+        const auto folder = QDir(m_temp.path()).filePath("picker-fixture");
+        QVERIFY(QDir().mkpath(folder));
+        const QStringList inputs{QDir(folder).filePath("first.txt"),
+                                 QDir(folder).filePath("second.txt")};
+        for (const auto &path : inputs) {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("synthetic");
+        }
+        const auto output = QDir(folder).filePath("new-file.txt");
+        for (bool cancel : {false, true}) {
+            for (int mode = 0; mode < 4; ++mode) {
+                QObject timerScope;
+                bool observed = false;
+                QTimer::singleShot(0, &timerScope, [&] {
+                    auto dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+                    if (!dialog)
+                        return;
+                    observed = dialog->objectName() == "localFileDialogFallback";
+                    auto name = dialog->findChild<QLineEdit *>("localFileName");
+                    auto entries = dialog->findChild<QTreeWidget *>("localEntries");
+                    auto buttons = dialog->findChild<QDialogButtonBox *>();
+                    if (cancel || !observed || !name || !entries || !buttons) {
+                        dialog->reject();
+                        return;
+                    }
+                    if (mode == 0)
+                        name->setText("first.txt");
+                    else if (mode == 1) {
+                        for (int i = 0; i < entries->topLevelItemCount(); ++i)
+                            entries->topLevelItem(i)->setSelected(true);
+                    } else if (mode == 2)
+                        name->setText("new-file");
+                    buttons->button(QDialogButtonBox::Open)->click();
+                });
+                QTimer::singleShot(3000, &timerScope, [] {
+                    if (auto dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget()))
+                        dialog->reject();
+                });
+                QStringList selected;
+                if (mode == 0)
+                    selected << LocalFileDialog::getOpenFileName(m_window.get(), "Synthetic open",
+                                                                 folder, "Text (*.txt)");
+                else if (mode == 1)
+                    selected = LocalFileDialog::getOpenFileNames(
+                        m_window.get(), "Synthetic multi-open", folder, "Text (*.txt)");
+                else if (mode == 2)
+                    selected << LocalFileDialog::getSaveFileName(m_window.get(), "Synthetic save",
+                                                                 folder, "Text (*.txt)");
+                else
+                    selected << LocalFileDialog::getExistingDirectory(
+                        m_window.get(), "Synthetic directory", folder);
+                QVERIFY(observed);
+                selected.removeAll(QString());
+                selected.sort();
+                if (cancel)
+                    QVERIFY(selected.isEmpty());
+                else if (mode == 0)
+                    QCOMPARE(selected, QStringList{inputs.first()});
+                else if (mode == 1)
+                    QCOMPARE(selected, inputs);
+                else if (mode == 2)
+                    QCOMPARE(selected, QStringList{output});
+                else
+                    QCOMPARE(selected, QStringList{folder});
+            }
+        }
+        QVERIFY(!QFileInfo::exists(output));
+        QCOMPARE(projectToJson(m_session->project()), before);
     }
     void localPickerDriveMatchesInitialDirectory() {
         bool matched = false;

@@ -252,7 +252,7 @@ QRectF ViewerWidget::imageRect() const {
     QSizeF sz =
         m_image.isNull() ? QSizeF(m_session->project().viewer.outputSize) : QSizeF(m_image.size());
     if (sz.isEmpty())
-        sz = QSizeF(960, 540);
+        sz = ViewerSettings::DefaultOutputSize;
     sz.scale(QSizeF(width(), height()), Qt::KeepAspectRatio);
     return QRectF((width() - sz.width()) / 2, (height() - sz.height()) / 2, sz.width(),
                   sz.height());

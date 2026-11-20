@@ -26,7 +26,8 @@ struct Rational {
 
 enum class SourceKind { Video, Audio, Image, Sequence };
 enum class LoopMode { Once, Loop, PingPong };
-enum class ViewerMode { Single, AB, Wipe, Blend, Split, Grid };
+// Stored numerically in project files. Keep existing mode values stable.
+enum class ViewerMode { Single, AB, Wipe, Blend, Split, Grid, SingleB };
 enum class AnnotationTool { Pencil, Arrow, Rectangle, Ellipse, Text, Eraser };
 enum class OverlayType { Off, SafeArea, Grid, Center, DynamicSymmetry, PhiGrid, Custom, Image };
 enum class OverlayShapeType { Line, Rectangle, Ellipse, Polygon, Text };
@@ -249,7 +250,8 @@ struct ViewerSettings {
     bool ghostByAnnotations = false;
     QColor ghostPreviousTint{255, 90, 90};
     QColor ghostNextTint{90, 160, 255};
-    QSize outputSize{960, 540};
+    static constexpr QSize DefaultOutputSize{1920, 1080};
+    QSize outputSize = DefaultOutputSize;
 };
 struct Project {
     QString name = QStringLiteral("Untitled");
@@ -306,6 +308,8 @@ VideoColorInfo frameColorInfo(const MediaInfo &, qint64 ordinal);
 QString framePictureType(const MediaInfo &, qint64 ordinal);
 bool frameIsKeyFrame(const MediaInfo &, qint64 ordinal);
 QJsonObject videoColorToJson(const VideoColorInfo &);
+bool isSinglePaneMode(ViewerMode);
+int primaryViewerPane(const ViewerSettings &);
 int activeViewerPane(const ViewerSettings &);
 QRectF viewerPaneRect(const ViewerSettings &, int pane); // normalized composition coordinates
 int viewerPaneAt(const ViewerSettings &, QPointF normalizedPosition);

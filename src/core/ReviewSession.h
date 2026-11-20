@@ -52,6 +52,7 @@ class ReviewSession final : public QObject {
     void assignViewer(int pane, const QString &sourceOrTimelineId);
     void setViewerSettings(const ViewerSettings &settings);
     quint64 beginViewerPreview();
+    bool previewComparisonMix(quint64 token, double amount);
     bool previewViewerSettings(quint64 token, const ViewerSettings &settings);
     bool previewAnnotation(quint64 token, const Annotation &annotation);
     bool commitViewerPreview(quint64 token, const QString &label);
@@ -66,7 +67,7 @@ class ReviewSession final : public QObject {
     void addAnnotation(const Annotation &annotation);
     bool saveNotesCsv(const QString &path);
     bool loadNotesCsv(const QString &path);
-    void exportAsync(const ExportSettings &settings);
+    bool exportAsync(const ExportSettings &settings);
     void cancelExport();
     void setAudioEnabled(bool enabled);
     bool audioEnabled() const;
@@ -110,7 +111,7 @@ class ReviewSession final : public QObject {
     void status(const QString &message);
     void busyChanged(bool busy);
     void exportProgress(int percent);
-    void exportFinished(bool success, const QString &message);
+    void exportFinished(bool success, const QString &message, const QString &publishedFile);
 
   private:
     friend class ReviewSessionTestAccess;
