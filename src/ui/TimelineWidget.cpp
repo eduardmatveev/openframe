@@ -130,9 +130,10 @@ void TimelineWidget::mousePressEvent(QMouseEvent *e) {
 }
 void TimelineWidget::mouseMoveEvent(QMouseEvent *e) {
     auto f = frameAt(e->position().x());
-    if (m_drag == Drag::Seek)
-        m_session->navigate(f, m_audioOnScrub);
-    else if (m_drag == Drag::RangeIn)
+    if (m_drag == Drag::Seek) {
+        if (f != m_session->currentFrame())
+            m_session->navigate(f, m_audioOnScrub);
+    } else if (m_drag == Drag::RangeIn)
         m_session->setRange(std::min(f, m_session->project().rangeOut < 0
                                             ? m_session->durationFrames() - 1
                                             : m_session->project().rangeOut),
@@ -146,7 +147,11 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e) {
             QString("Frame %1")
                 .arg(displayFrameNumber(m_session->project(), m_session->activeOwnerId(), f)));
 }
-void TimelineWidget::mouseReleaseEvent(QMouseEvent *) {
+void TimelineWidget::mouseReleaseEvent(QMouseEvent *event) {
+    if (m_drag == Drag::Seek && event->button() == Qt::LeftButton) {
+        m_session->navigate(frameAt(event->position().x()), false);
+        m_session->seek(m_session->currentFrame(), false);
+    }
     m_drag = Drag::None;
 }
 void TimelineWidget::mouseDoubleClickEvent(QMouseEvent *e) {

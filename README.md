@@ -6,7 +6,7 @@
 
 ## Запуск
 
-В дереве проекта откройте `dist\OpenFrame-0.4.0\OpenFrame.exe`; в готовом переносимом каталоге — `OpenFrame.exe`. Рядом с EXE должны оставаться DLL и каталоги Qt plugins. Python, Maya и SDK для самого проигрывателя не нужны. Версии зависимостей и SHA-256 бинарных файлов сохранены в `build-info.json`. Предыдущий проверенный пакет 0.3.0 оставлен в `dist\OpenFrame`.
+В дереве проекта откройте `dist\OpenFrame-local\OpenFrame.exe`; в готовом переносимом каталоге — `OpenFrame.exe`. Рядом с EXE должны оставаться DLL и каталоги Qt plugins. Python, Maya и SDK для самого проигрывателя не нужны. Версии зависимостей и SHA-256 бинарных файлов сохранены в `build-info.json`.
 
 В 0.4.0 добавлены 10/12-bit данные, HDR → SDR, поворот wipe, давление/ластик и таймауты Maya. **HDR 1080p пока не воспроизводится плавно при 24 fps** на измеренном CPU-пути. [Результаты и ограничения 0.4.0](docs/ACCEPTANCE_0_4_0.md).
 
@@ -29,7 +29,7 @@
 
 ```python
 import sys
-sys.path.insert(0, r"D:\Work\wws\wws-unity\Assets\Content\Animations\~Misc~\Maya\Script\OpenFrame\dist\OpenFrame-0.4.0\maya")
+sys.path.insert(0, r"D:\Work\tools\openframe\dist\OpenFrame-local\maya")
 import openframe_maya
 openframe_maya.show()
 ```

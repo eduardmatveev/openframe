@@ -52,9 +52,13 @@ QImage assigned(const Project &p, const QString &assignment, qint64 frame, Media
     if (!e)
         return {};
     auto s = p.source(e->sourceId);
-    return s && !s->missing
-               ? ColorPipeline::displayRgba(engine.nativeFrame(*s, e->sourceFrame), p.viewer.color)
-               : QImage{};
+    if (!s || s->missing)
+        return {};
+    auto native = engine.nativeFrame(*s, e->sourceFrame);
+    engine.checkCancelled();
+    auto image = ColorPipeline::displayRgba(native, p.viewer.color);
+    engine.checkCancelled();
+    return image;
 }
 void overlay(QPainter &painter, const Project &project, qint64 frame, const QSize &size) {
     auto &v = project.viewer;

@@ -42,6 +42,45 @@
 #include "media/AnnotationRenderer.h"
 #include "integration/ApiServer.h"
 using namespace openframe;
+// Observe normal QWidget paints without forcing a grab/repaint. The queued callback
+// runs after the paint event returns; it is not a display-compositor/vblank timestamp.
+class ViewerPaintProbe final : public QObject {
+  public:
+    struct Sample {
+        qint64 frame, readyNs, paintedNs;
+    };
+    QElapsedTimer clock;
+    QVector<Sample> samples;
+    int paintEvents = 0;
+    ViewerPaintProbe(ViewerWidget *viewer, ReviewSession *session) : QObject(viewer) {
+        clock.start();
+        viewer->installEventFilter(this);
+        connect(session, &ReviewSession::imageReady, this, [this, session] {
+            m_frame = session->audioDiagnostics().value("renderedFrame").toInteger(-1);
+            m_readyNs = clock.nsecsElapsed();
+            ++m_serial;
+        });
+    }
+
+  protected:
+    bool eventFilter(QObject *, QEvent *event) override {
+        if (event->type() == QEvent::Paint) {
+            ++paintEvents;
+            if (m_frame >= 0 && m_serial != m_recordedSerial) {
+                m_recordedSerial = m_serial;
+                const auto frame = m_frame, ready = m_readyNs;
+                QTimer::singleShot(0, this, [this, frame, ready] {
+                    samples.append({frame, ready, clock.nsecsElapsed()});
+                });
+            }
+        }
+        return false;
+    }
+
+  private:
+    qint64 m_frame = -1, m_readyNs = 0;
+    quint64 m_serial = 0, m_recordedSerial = 0;
+};
 class UiTests final : public QObject {
     Q_OBJECT
   private:
@@ -133,6 +172,148 @@ class UiTests final : public QObject {
         QCOMPARE(m_session->project().viewer.transforms[0].rotation, 90);
         command("resetFlip")->trigger();
         QCOMPARE(m_session->project().viewer.transforms[0].rotation, 0);
+    }
+    void scrubbingAvoidsDuplicateMovesAndKeepsReleaseTarget() {
+        auto timeline = m_window->findChild<TimelineWidget *>("globalTimeControl");
+        QVERIFY(timeline);
+        timeline->setAudioOnScrub(false);
+        auto send = [&](QEvent::Type type, double frame) {
+            const QPointF point(10 + frame / 23 * (timeline->width() - 20), 8);
+            QMouseEvent event(type, point, timeline->mapToGlobal(point.toPoint()),
+                              type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                              type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton,
+                              Qt::NoModifier);
+            QApplication::sendEvent(timeline, &event);
+        };
+        QSignalSpy changed(m_session.get(), &ReviewSession::frameChanged);
+        send(QEvent::MouseButtonPress, 8);
+        QCOMPARE(m_session->currentFrame(), 8);
+        const int afterPress = changed.count();
+        QVERIFY(afterPress > 0);
+        for (int i = 0; i < 100; ++i)
+            send(QEvent::MouseMove, 8 + .001 * i);
+        QCOMPARE(changed.count(), afterPress);
+        send(QEvent::MouseButtonRelease, 13);
+        QCOMPARE(m_session->currentFrame(), 13);
+        auto viewer = m_window->viewer();
+        viewer->setAudioOnScrub(false);
+        viewer->setScrubSensitivity(10);
+        const auto start = viewer->imageRect().center();
+        pointer(QEvent::MouseButtonPress, start);
+        const int beforeMoves = changed.count();
+        for (int i = 0; i < 8; ++i)
+            pointer(QEvent::MouseMove, start + QPointF(i, 0));
+        QCOMPARE(changed.count(), beforeMoves);
+        pointer(QEvent::MouseButtonRelease, start + QPointF(30, 0));
+        QCOMPARE(m_session->currentFrame(), 16);
+        send(QEvent::MouseButtonPress, 8);
+        send(QEvent::MouseButtonRelease, -5);
+        QCOMPARE(m_session->currentFrame(), 0);
+        send(QEvent::MouseButtonPress, 8);
+        send(QEvent::MouseButtonRelease, 30);
+        QCOMPARE(m_session->currentFrame(), 23);
+        m_session->setRange(4, 12);
+        m_session->setLockStepScrubToRange(true);
+        send(QEvent::MouseButtonPress, 8);
+        send(QEvent::MouseButtonRelease, 22);
+        QCOMPARE(m_session->currentFrame(), 12);
+    }
+    void sliderDragReachesNormalViewerPaint() {
+        const auto userProject = qEnvironmentVariable("OPENFRAME_UI_SCRUB_PROJECT");
+        if (userProject.isEmpty()) {
+            const auto imagePath = m_session->project().sources.first().sequencePaths.first();
+            QStringList paths;
+            for (int i = 0; i < 96; ++i)
+                paths.append(imagePath);
+            m_session->newProject();
+            m_session->importImageSequence(paths, {24, 1});
+            QTRY_COMPARE_WITH_TIMEOUT(m_session->durationFrames(), 96, 10000);
+        } else {
+            QVERIFY(m_session->openProject(userProject));
+        }
+        m_session->setAudioEnabled(false);
+        m_session->seek(0, false);
+        QTRY_COMPARE_WITH_TIMEOUT(m_session->audioDiagnostics().value("renderedFrame").toInteger(),
+                                  0, 10000);
+        const qint64 lastFrame = m_session->durationFrames() - 1;
+        QVERIFY(lastFrame >= 10);
+        auto timeline = m_window->findChild<TimelineWidget *>("globalTimeControl");
+        QVERIFY(timeline);
+        timeline->setAudioOnScrub(false);
+        m_session->setAudioEnabled(false);
+        QCoreApplication::processEvents();
+        ViewerPaintProbe probe(m_window->viewer(), m_session.get());
+        QMap<qint64, qint64> requested;
+        qint64 previousFrame = -1;
+        QVector<double> handlers;
+        auto send = [&](QEvent::Type type, double frame) {
+            const QPointF point(10 + frame / lastFrame * (timeline->width() - 20), 8);
+            const auto target = qint64(std::llround(frame));
+            if (target != previousFrame) {
+                requested[target] = probe.clock.nsecsElapsed();
+                previousFrame = target;
+            }
+            QMouseEvent event(type, point, timeline->mapToGlobal(point.toPoint()),
+                              type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                              type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton,
+                              Qt::NoModifier);
+            QElapsedTimer handler;
+            handler.start();
+            QApplication::sendEvent(timeline, &event);
+            handlers.append(handler.nsecsElapsed() / 1000000.0);
+        };
+        send(QEvent::MouseButtonPress, 0);
+        for (int i = 1; i <= 94; ++i) {
+            send(QEvent::MouseMove, double(lastFrame) * i / 95);
+            QTest::qWait(4);
+        }
+        const auto releaseNs = probe.clock.nsecsElapsed();
+        send(QEvent::MouseButtonRelease, lastFrame);
+        QCOMPARE(m_session->currentFrame(), lastFrame);
+        auto finalPainted = [&] {
+            return std::any_of(probe.samples.cbegin(), probe.samples.cend(), [&](const auto &s) {
+                return s.frame == lastFrame && s.paintedNs >= releaseNs;
+            });
+        };
+        QTRY_VERIFY_WITH_TIMEOUT(finalPainted(), 5000);
+        QVector<double> latencies, readyToPaint;
+        QSet<qint64> paintedDuringDrag;
+        double releaseMs = -1;
+        for (const auto &sample : probe.samples) {
+            if (requested.contains(sample.frame) && sample.paintedNs >= requested[sample.frame])
+                latencies.append((sample.paintedNs - requested[sample.frame]) / 1000000.0);
+            readyToPaint.append((sample.paintedNs - sample.readyNs) / 1000000.0);
+            if (sample.paintedNs < releaseNs)
+                paintedDuringDrag.insert(sample.frame);
+            if (sample.frame == lastFrame && sample.paintedNs >= releaseNs && releaseMs < 0)
+                releaseMs = (sample.paintedNs - releaseNs) / 1000000.0;
+        }
+        auto percentile = [](QVector<double> values, double fraction) {
+            if (values.isEmpty())
+                return -1.0;
+            std::sort(values.begin(), values.end());
+            return values[std::min<qsizetype>(values.size() - 1,
+                                              qsizetype(std::ceil(values.size() * fraction)) - 1)];
+        };
+        QJsonObject report{
+            {"fixture", userProject.isEmpty() ? "own 96-frame PNG sequence"
+                                              : "authorized user project (read only)"},
+            {"measurement",
+             "slider QMouseEvent to queued completion after normal Viewer QEvent::Paint; no grab"},
+            {"platform", QGuiApplication::platformName()},
+            {"devicePixelRatio", m_window->devicePixelRatioF()},
+            {"mouseMoves", 94},
+            {"paintEvents", probe.paintEvents},
+            {"distinctFramesPaintedDuringDrag", paintedDuringDrag.size()},
+            {"requestToPaintP50Ms", percentile(latencies, .5)},
+            {"requestToPaintP95Ms", percentile(latencies, .95)},
+            {"imageReadyToPaintP95Ms", percentile(readyToPaint, .95)},
+            {"mouseHandlerP95Ms", percentile(handlers, .95)},
+            {"releaseToFinalPaintMs", releaseMs},
+            {"finalPaintedFrame", lastFrame}};
+        qInfo().noquote() << "SCRUB_UI " << QJsonDocument(report).toJson(QJsonDocument::Compact);
+        QVERIFY2(paintedDuringDrag.size() >= 8, "Video only updated after the drag stopped");
+        QVERIFY(releaseMs >= 0 && releaseMs < 1000);
     }
     void annotationRendererPreservesPrecisionAndPressure() {
         Project project;

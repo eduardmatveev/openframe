@@ -31,6 +31,17 @@
 
 namespace openframe {
 namespace {
+class MediaOperation final {
+    MediaEngine &engine;
+
+  public:
+    MediaOperation(MediaEngine &value, CancelCheck cancelled) : engine(value) {
+        engine.setOperationCancelled(std::move(cancelled));
+    }
+    ~MediaOperation() {
+        engine.setOperationCancelled({});
+    }
+};
 class SnapshotCommand final : public QUndoCommand {
   public:
     SnapshotCommand(QString label, Project before, Project after,
@@ -204,10 +215,14 @@ QVector<float> speedAudio(const QVector<float> &in, int outputSamples, double ra
 struct ReviewSession::Impl {
     ReviewSession *q;
     Project project = emptyProject();
-    quint64 previewSerial=0, previewToken=0;
+    quint64 previewSerial = 0, previewToken = 0;
     std::optional<ViewerSettings> viewerPreview;
     std::optional<Annotation> annotationPreview;
-    void invalidatePreview() { previewToken=0; viewerPreview.reset(); annotationPreview.reset(); }
+    void invalidatePreview() {
+        previewToken = 0;
+        viewerPreview.reset();
+        annotationPreview.reset();
+    }
     QString path;
     QUndoStack undo;
     std::map<QString, std::unique_ptr<QUndoStack>> annotationStacks;
@@ -250,6 +265,9 @@ struct ReviewSession::Impl {
     int imports = 0;
     std::atomic_bool stop{false}, exportCancel{false};
     std::atomic<quint64> renderEpoch{0}, audioEpoch{0}, projectEpoch{0};
+#ifdef OPENFRAME_TESTING
+    std::function<void()> beforePresentationTestHook; // worker-thread-only, consumed once
+#endif
     std::mutex mutex;
     std::condition_variable cv;
     enum class JobKind { Generic, Render, AudioReset, Audio };
@@ -525,6 +543,8 @@ struct ReviewSession::Impl {
              deviceFormat](MediaEngine &engine) {
                 if (stop || epoch != audioEpoch)
                     return;
+                MediaOperation operation(engine,
+                                         [this, epoch] { return stop || epoch != audioEpoch; });
                 try {
                     if (stretch.epoch != epoch || !stretch.converter) {
                         stretch = {};
@@ -625,6 +645,13 @@ struct ReviewSession::Impl {
     }
 };
 #ifdef OPENFRAME_TESTING
+void ReviewSessionTestAccess::beforeNextPresentation(ReviewSession &session,
+                                                     std::function<void()> operation) {
+    auto impl = session.d.get();
+    impl->enqueue([impl, operation = std::move(operation)](MediaEngine &) mutable {
+        impl->beforePresentationTestHook = std::move(operation);
+    });
+}
 void ReviewSessionTestAccess::enqueueWorker(ReviewSession &session,
                                             std::function<void()> operation) {
     session.d->enqueue([operation = std::move(operation)](MediaEngine &) { operation(); });
@@ -705,7 +732,10 @@ void ReviewSession::mutateAnnotations(const QString &label, const QString &owner
             if (a.id.isEmpty())
                 a.id = newId();
             QString annotationError;
-            if(!validateAnnotation(a,&annotationError)) { emit error(annotationError); return; }
+            if (!validateAnnotation(a, &annotationError)) {
+                emit error(annotationError);
+                return;
+            }
             after.append(a);
         }
     if (before == after)
@@ -840,34 +870,63 @@ bool ReviewSession::openProject(const QString &path) {
 }
 void ReviewSession::refreshLegacyMetadata() {
     QVector<MediaSource> pending;
-    for(const auto &source:d->project.sources)if(source.info.hasVideo&&!source.missing&&
-        (source.info.color.componentBits==0||source.info.color.pixelFormat.isEmpty()||
-         source.info.pictureTypes.size()!=source.info.frameCount()||source.info.keyFrames.size()!=source.info.frameCount()))pending.append(source);
-    if(pending.isEmpty())return;
-    ++d->imports;emit busyChanged(true);
-    const auto epoch=d->projectEpoch.load();
-    d->enqueueImport([this,epoch,pending=std::move(pending)](MediaEngine &) {
-        for(const auto &old:pending) {
-            if(d->stop||epoch!=d->projectEpoch)break;
+    for (const auto &source : d->project.sources)
+        if (source.info.hasVideo && !source.missing &&
+            (source.info.color.componentBits == 0 || source.info.color.pixelFormat.isEmpty() ||
+             source.info.pictureTypes.size() != source.info.frameCount() ||
+             source.info.keyFrames.size() != source.info.frameCount()))
+            pending.append(source);
+    if (pending.isEmpty())
+        return;
+    ++d->imports;
+    emit busyChanged(true);
+    const auto epoch = d->projectEpoch.load();
+    d->enqueueImport([this, epoch, pending = std::move(pending)](MediaEngine &) {
+        for (const auto &old : pending) {
+            if (d->stop || epoch != d->projectEpoch)
+                break;
             try {
-                auto cancel=[this,epoch]{return d->stop||epoch!=d->projectEpoch;};
-                auto fresh=old.kind==SourceKind::Sequence||old.kind==SourceKind::Image?
-                    probeImageSequence(old.sequencePaths.isEmpty()?QStringList{old.path}:old.sequencePaths,old.info.fps,cancel):probeMedia(old.path,cancel);
-                if(fresh.info.framePts!=old.info.framePts||fresh.info.timeBase!=old.info.timeBase)
-                    throw std::runtime_error("Source presentation index changed; relink this source to refresh its media data");
-                d->post([epoch,id=old.id,path=old.path,paths=old.sequencePaths,info=std::move(fresh.info)](ReviewSession *session) {
-                    if(epoch!=session->d->projectEpoch)return;
-                    for(auto &source:session->d->project.sources)if(source.id==id&&source.path==path&&source.sequencePaths==paths) {
-                        source.info.color=info.color;source.info.frameColors=info.frameColors;
-                        source.info.pictureTypes=info.pictureTypes;source.info.keyFrames=info.keyFrames;
-                        session->d->invalidatePreview();emit session->projectChanged();session->requestFrame();break;
-                    }
+                auto cancel = [this, epoch] { return d->stop || epoch != d->projectEpoch; };
+                auto fresh =
+                    old.kind == SourceKind::Sequence || old.kind == SourceKind::Image
+                        ? probeImageSequence(old.sequencePaths.isEmpty() ? QStringList{old.path}
+                                                                         : old.sequencePaths,
+                                             old.info.fps, cancel)
+                        : probeMedia(old.path, cancel);
+                if (fresh.info.framePts != old.info.framePts ||
+                    fresh.info.timeBase != old.info.timeBase)
+                    throw std::runtime_error("Source presentation index changed; relink this "
+                                             "source to refresh its media data");
+                d->post([epoch, id = old.id, path = old.path, paths = old.sequencePaths,
+                         info = std::move(fresh.info)](ReviewSession *session) {
+                    if (epoch != session->d->projectEpoch)
+                        return;
+                    for (auto &source : session->d->project.sources)
+                        if (source.id == id && source.path == path &&
+                            source.sequencePaths == paths) {
+                            source.info.color = info.color;
+                            source.info.frameColors = info.frameColors;
+                            source.info.pictureTypes = info.pictureTypes;
+                            source.info.keyFrames = info.keyFrames;
+                            session->d->invalidatePreview();
+                            emit session->projectChanged();
+                            session->requestFrame();
+                            break;
+                        }
                 });
-            }catch(const std::exception &e) {
-                d->post([epoch,message=QString::fromUtf8(e.what())](ReviewSession *session){if(epoch==session->d->projectEpoch)emit session->error(message);});
+            } catch (const std::exception &e) {
+                d->post([epoch, message = QString::fromUtf8(e.what())](ReviewSession *session) {
+                    if (epoch == session->d->projectEpoch)
+                        emit session->error(message);
+                });
             }
         }
-        d->post([epoch](ReviewSession *session){if(epoch==session->d->projectEpoch){session->d->imports=std::max(0,session->d->imports-1);emit session->busyChanged(session->busy());}});
+        d->post([epoch](ReviewSession *session) {
+            if (epoch == session->d->projectEpoch) {
+                session->d->imports = std::max(0, session->d->imports - 1);
+                emit session->busyChanged(session->busy());
+            }
+        });
     });
 }
 bool ReviewSession::saveProject(const QString &path) {
@@ -1211,10 +1270,9 @@ void ReviewSession::seek(qint64 frame, bool scrub) {
     seekInternal(frame, scrub, scrub);
 }
 void ReviewSession::navigate(qint64 frame, bool scrub) {
-    seekInternal(frame, true, scrub);
+    seekInternal(frame, true, scrub, true);
 }
-void ReviewSession::seekInternal(qint64 frame, bool navigation, bool scrub) {
-    ++d->presentationEpoch;
+void ReviewSession::seekInternal(qint64 frame, bool navigation, bool scrub, bool allowProgress) {
     qint64 first = 0, last = std::max<qint64>(0, durationFrames() - 1);
     if (navigation && (d->lockStepRange || (d->loopStep && d->loopStepRange))) {
         first = std::clamp<qint64>(d->project.rangeIn, 0, last);
@@ -1235,6 +1293,14 @@ void ReviewSession::seekInternal(qint64 frame, bool navigation, bool scrub) {
         }
         bounded = heldBookmark(bookmarks, bounded);
     }
+    // Mouse motion can report the same integer frame repeatedly. Retain the
+    // in-flight exact result instead of perpetually invalidating it.
+    if (allowProgress && bounded == d->frame)
+        return;
+    // During a drag, allow bounded progress from exact previously requested frames.
+    // An absolute seek (including mouse release) is a hard latest-frame barrier.
+    if (!allowProgress || d->playing)
+        ++d->presentationEpoch;
     d->frame = bounded;
     if (d->playing)
         d->startTransport();
@@ -1440,31 +1506,50 @@ void ReviewSession::setViewerSettings(const ViewerSettings &settings) {
 }
 quint64 ReviewSession::beginViewerPreview() {
     d->invalidatePreview();
-    d->previewToken=++d->previewSerial;
-    d->viewerPreview=d->project.viewer;
+    d->previewToken = ++d->previewSerial;
+    d->viewerPreview = d->project.viewer;
     return d->previewToken;
 }
-bool ReviewSession::previewViewerSettings(quint64 token,const ViewerSettings &settings) {
-    if(!token||token!=d->previewToken) return false;
+bool ReviewSession::previewViewerSettings(quint64 token, const ViewerSettings &settings) {
+    if (!token || token != d->previewToken)
+        return false;
     QString message;
-    if(!validateViewerSettings(settings,&message)) {emit error(message);return false;}
-    d->viewerPreview=settings; requestFrame(); return true;
+    if (!validateViewerSettings(settings, &message)) {
+        emit error(message);
+        return false;
+    }
+    d->viewerPreview = settings;
+    requestFrame();
+    return true;
 }
-bool ReviewSession::previewAnnotation(quint64 token,const Annotation &annotation) {
-    if(!token||token!=d->previewToken) return false;
+bool ReviewSession::previewAnnotation(quint64 token, const Annotation &annotation) {
+    if (!token || token != d->previewToken)
+        return false;
     QString message;
-    if(!validateAnnotation(annotation,&message)) {emit error(message);return false;}
-    d->annotationPreview=annotation; requestFrame(); return true;
+    if (!validateAnnotation(annotation, &message)) {
+        emit error(message);
+        return false;
+    }
+    d->annotationPreview = annotation;
+    requestFrame();
+    return true;
 }
-bool ReviewSession::commitViewerPreview(quint64 token,const QString &label) {
-    if(!token||token!=d->previewToken||!d->viewerPreview) return false;
-    auto settings=*d->viewerPreview;
+bool ReviewSession::commitViewerPreview(quint64 token, const QString &label) {
+    if (!token || token != d->previewToken || !d->viewerPreview)
+        return false;
+    auto settings = *d->viewerPreview;
     d->invalidatePreview();
-    mutateProject(label,[&](Project &p){p.viewer=settings;rememberViews(p);});
+    mutateProject(label, [&](Project &p) {
+        p.viewer = settings;
+        rememberViews(p);
+    });
     return true;
 }
 void ReviewSession::clearViewerPreview(quint64 token) {
-    if(token&&token==d->previewToken) {d->invalidatePreview();requestFrame();}
+    if (token && token == d->previewToken) {
+        d->invalidatePreview();
+        requestFrame();
+    }
 }
 ViewerSettings ReviewSession::displayedViewerSettings() const {
     return d->viewerPreview.value_or(d->project.viewer);
@@ -1572,8 +1657,10 @@ void ReviewSession::requestFrame(bool scrub) {
     auto epoch = ++d->renderEpoch;
     auto presentation = d->presentationEpoch.load();
     auto snapshot = d->project;
-    if(d->viewerPreview) snapshot.viewer=*d->viewerPreview;
-    if(d->annotationPreview) snapshot.annotations.append(*d->annotationPreview);
+    if (d->viewerPreview)
+        snapshot.viewer = *d->viewerPreview;
+    if (d->annotationPreview)
+        snapshot.annotations.append(*d->annotationPreview);
     if (d->playing && d->hideAnnotations)
         snapshot.viewer.showAnnotations = false;
     auto frame = d->frame;
@@ -1584,12 +1671,22 @@ void ReviewSession::requestFrame(bool scrub) {
             if (d->stop || epoch != d->renderEpoch)
                 return;
             try {
+                QElapsedTimer operationClock;
+                operationClock.start();
+                MediaOperation operation(engine, [this, epoch, presentation, operationClock] {
+                    return d->stop || presentation != d->presentationEpoch ||
+                           (epoch != d->renderEpoch && operationClock.elapsed() >= 80);
+                });
                 QImage image;
                 if (emptyFrame) {
                     image = QImage(snapshot.viewer.outputSize, QImage::Format_RGBA8888);
                     image.fill(snapshot.viewer.background);
                 } else
                     image = FrameComposer::compose(snapshot, frame, engine);
+#ifdef OPENFRAME_TESTING
+                if (auto hook = std::exchange(d->beforePresentationTestHook, {}))
+                    hook();
+#endif
                 d->post([epoch, presentation, frame, image = std::move(image)](ReviewSession *s) {
                     if (presentation != s->d->presentationEpoch || epoch <= s->d->presentedSerial)
                         return;
@@ -1606,7 +1703,10 @@ void ReviewSession::requestFrame(bool scrub) {
             }
         },
         Impl::JobKind::Render);
-    if (scrub && d->audioEnabled && d->scrubEnabled) {
+    const auto assignment = evaluateAssignment(d->project, d->owner(), d->frame);
+    const auto scrubSource = assignment ? d->project.source(assignment->audioSourceId) : nullptr;
+    if (scrub && d->audioEnabled && d->scrubEnabled && scrubSource && scrubSource->info.hasAudio &&
+        !assignment->muted && assignment->gain != 0) {
         d->resetAudio();
         if (d->openAudio())
             d->queueAudio(0, 100000, true);

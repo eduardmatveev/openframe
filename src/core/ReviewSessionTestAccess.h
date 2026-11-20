@@ -7,6 +7,7 @@ class ReviewSession;
 // or external API exposes this; omitted when building without tests.
 class ReviewSessionTestAccess {
   public:
+    static void beforeNextPresentation(ReviewSession &, std::function<void()> operation);
     static void enqueueWorker(ReviewSession &, std::function<void()> operation);
 };
 } // namespace openframe

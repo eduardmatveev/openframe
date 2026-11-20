@@ -23,6 +23,8 @@ class MediaDecoder {
     QImage frame(qint64 ordinal);
     VideoFrame nativeFrame(qint64 ordinal);
     void setFrameCacheKiB(int limit);
+    // Worker-thread-only cancellation between packets/frames; local AVIO remains reusable.
+    void setOperationCancelled(CancelCheck cancelled);
     // Interleaved float stereo 48kHz; negative/out-of-file areas are silence.
     QVector<float> audio(qint64 startUs, qint64 durationUs);
 
@@ -46,6 +48,9 @@ class MediaEngine {
     QVector<float> timelineAudio(const Project &, const QString &timelineId, qint64 startUs,
                                  qint64 durationUs);
     void setCacheLimitMiB(int mib);
+    // Scoped by the caller to one worker operation.
+    void setOperationCancelled(CancelCheck cancelled);
+    void checkCancelled() const;
     void clear();
 
   private:

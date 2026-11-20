@@ -227,7 +227,7 @@ MediaSource probeImageSequence(const QStringList &paths, Rational fps,
             throw std::runtime_error(e.toStdString());
         if (n == 0) {
             auto image = readLocalRasterImage(path);
-            s.info.color=rasterColorInfo(image);
+            s.info.color = rasterColorInfo(image);
             s.info.width = image.width();
             s.info.height = image.height();
             s.path = path;
@@ -235,7 +235,8 @@ MediaSource probeImageSequence(const QStringList &paths, Rational fps,
         s.sequencePaths.append(path);
         s.info.framePts.append(n);
         s.info.frameDurations.append(1);
-        s.info.pictureTypes.append('?'); s.info.keyFrames.append('1');
+        s.info.pictureTypes.append('?');
+        s.info.keyFrames.append('1');
     }
     s.info.durationUs = fps.frameToUs(paths.size());
     return s;
@@ -377,7 +378,7 @@ MediaSource probeMedia(const QString &path, const CancelCheck &cancelled,
         static_cast<qint64>(info.width) * info.height > 134217728)
         throw std::runtime_error("Video dimensions exceed memory safety limit");
     auto stream = input.format->streams[codec.stream];
-    info.color=videoColorInfo(stream->codecpar);
+    info.color = videoColorInfo(stream->codecpar);
     auto fps = av_guess_frame_rate(input.format, stream, nullptr);
     if (fps.num <= 0 || fps.den <= 0)
         fps = {24, 1};
@@ -399,15 +400,39 @@ MediaSource probeMedia(const QString &path, const CancelCheck &cancelled,
                           : info.framePts.last() + std::max<qint64>(1, info.frameDurations.last());
             if (!info.framePts.isEmpty() && pts < info.framePts.last())
                 throw std::runtime_error("Non-monotonic decoded presentation timestamps");
-            auto color=videoColorInfo(frame.p,info.color);
-            if(info.framePts.isEmpty()) info.color=color;
-            else if(color!=frameColorInfo(info,info.framePts.size()-1)) info.frameColors[info.framePts.size()]=color;
-            char picture='?';
-            switch(frame.p->pict_type) {
-            case AV_PICTURE_TYPE_I:picture='I';break;case AV_PICTURE_TYPE_P:picture='P';break;case AV_PICTURE_TYPE_B:picture='B';break;
-            case AV_PICTURE_TYPE_S:picture='S';break;case AV_PICTURE_TYPE_SI:picture='i';break;case AV_PICTURE_TYPE_SP:picture='p';break;case AV_PICTURE_TYPE_BI:picture='b';break;default:break;
+            auto color = videoColorInfo(frame.p, info.color);
+            if (info.framePts.isEmpty())
+                info.color = color;
+            else if (color != frameColorInfo(info, info.framePts.size() - 1))
+                info.frameColors[info.framePts.size()] = color;
+            char picture = '?';
+            switch (frame.p->pict_type) {
+            case AV_PICTURE_TYPE_I:
+                picture = 'I';
+                break;
+            case AV_PICTURE_TYPE_P:
+                picture = 'P';
+                break;
+            case AV_PICTURE_TYPE_B:
+                picture = 'B';
+                break;
+            case AV_PICTURE_TYPE_S:
+                picture = 'S';
+                break;
+            case AV_PICTURE_TYPE_SI:
+                picture = 'i';
+                break;
+            case AV_PICTURE_TYPE_SP:
+                picture = 'p';
+                break;
+            case AV_PICTURE_TYPE_BI:
+                picture = 'b';
+                break;
+            default:
+                break;
             }
-            info.pictureTypes.append(picture); info.keyFrames.append((frame.p->flags&AV_FRAME_FLAG_KEY)?'1':'0');
+            info.pictureTypes.append(picture);
+            info.keyFrames.append((frame.p->flags & AV_FRAME_FLAG_KEY) ? '1' : '0');
             info.framePts.append(pts);
             info.frameDurations.append(frame.p->duration);
             if (info.framePts.size() > 4000000)
@@ -459,15 +484,35 @@ MediaSource probeMedia(const QString &path, const CancelCheck &cancelled,
 
 struct MediaDecoder::Impl {
     MediaSource source;
-    CancelCheck cancelled;
+    CancelCheck cancelled, operationCancelled;
     std::unique_ptr<Input> video, audioInput;
     std::unique_ptr<Codec> videoCodec, audioCodec;
     SwsContext *sws = nullptr;
     SwrContext *swr = nullptr;
     QCache<qint64, VideoFrame> nearby{16 * 1024};
     qint64 lastOrdinal = -1;
+    QVector<qint64> keyframes;
     bool eof = false;
-    Impl(MediaSource s, CancelCheck c) : source(std::move(s)), cancelled(std::move(c)) {}
+    Impl(MediaSource s, CancelCheck c) : source(std::move(s)), cancelled(std::move(c)) {
+        for (qint64 n = 0; n < source.info.keyFrames.size(); ++n)
+            if (source.info.keyFrames[n] == '1')
+                keyframes.append(n);
+    }
+    void checkCancelled() const {
+        checkCancel(cancelled);
+        checkCancel(operationCancelled);
+    }
+    bool canContinue(qint64 ordinal) const {
+        if (eof || lastOrdinal < 0 || ordinal <= lastOrdinal)
+            return false;
+        if (ordinal == lastOrdinal + 1)
+            return true;
+        auto next = std::upper_bound(keyframes.cbegin(), keyframes.cend(), ordinal);
+        if (next == keyframes.cbegin())
+            return ordinal - lastOrdinal <= 32;
+        // Advancing within the same GOP is cheaper than rewinding and decoding it again.
+        return *std::prev(next) <= lastOrdinal;
+    }
     ~Impl() {
         sws_freeContext(sws);
         swr_free(&swr);
@@ -503,26 +548,30 @@ struct MediaDecoder::Impl {
               "Configure audio conversion");
         check(swr_init(swr), "Start audio conversion");
     }
-
 };
 MediaDecoder::MediaDecoder(const MediaSource &s, CancelCheck c)
     : d(std::make_unique<Impl>(s, std::move(c))) {}
 MediaDecoder::~MediaDecoder() = default;
 QImage MediaDecoder::frame(qint64 ordinal) {
-    return ColorPipeline::quantize(ColorPipeline::displayRgba(nativeFrame(ordinal)),8);
+    return ColorPipeline::quantize(ColorPipeline::displayRgba(nativeFrame(ordinal)), 8);
 }
-void MediaDecoder::setFrameCacheKiB(int limit) { d->nearby.setMaxCost(std::max(0,limit)); }
+void MediaDecoder::setFrameCacheKiB(int limit) {
+    d->nearby.setMaxCost(std::max(0, limit));
+}
+void MediaDecoder::setOperationCancelled(CancelCheck cancelled) {
+    d->operationCancelled = std::move(cancelled);
+}
 VideoFrame MediaDecoder::nativeFrame(qint64 ordinal) {
-    checkCancel(d->cancelled);
+    d->checkCancelled();
     if (!d->source.info.hasVideo)
         return {};
     ordinal = std::clamp<qint64>(ordinal, 0, d->source.info.frameCount() - 1);
     if (auto cached = d->nearby.object(ordinal))
         return *cached;
-    if (d->source.kind == SourceKind::Image || d->source.kind == SourceKind::Sequence)
-    {
-        auto raster=readLocalRasterImage(d->source.sequencePaths.isEmpty()?d->source.path:d->source.sequencePaths[ordinal]);
-        return {{},raster,rasterColorInfo(raster),ordinal};
+    if (d->source.kind == SourceKind::Image || d->source.kind == SourceKind::Sequence) {
+        auto raster = readLocalRasterImage(
+            d->source.sequencePaths.isEmpty() ? d->source.path : d->source.sequencePaths[ordinal]);
+        return {{}, raster, rasterColorInfo(raster), ordinal};
     }
     d->initVideo();
     auto ctx = d->videoCodec->ctx;
@@ -530,7 +579,7 @@ VideoFrame MediaDecoder::nativeFrame(qint64 ordinal) {
     auto target = d->source.info.framePts[ordinal];
     if (ordinal > 0 && d->source.info.framePts[ordinal - 1] == target)
         --target;
-    if (ordinal != d->lastOrdinal + 1 || d->eof) {
+    if (!d->canContinue(ordinal)) {
         check(av_seek_frame(d->video->format, d->videoCodec->stream, target, AVSEEK_FLAG_BACKWARD),
               "Seek video");
         avcodec_flush_buffers(ctx);
@@ -543,11 +592,11 @@ VideoFrame MediaDecoder::nativeFrame(qint64 ordinal) {
     bool found = false;
     auto drain = [&]() {
         while (true) {
+            d->checkCancelled();
             auto r = avcodec_receive_frame(ctx, f.p);
             if (r == AVERROR(EAGAIN) || r == AVERROR_EOF)
                 break;
             check(r, "Decode video frame");
-            checkCancel(d->cancelled);
             auto pts = timestamp(f.p);
             auto it = std::lower_bound(d->source.info.framePts.begin(),
                                        d->source.info.framePts.end(), pts);
@@ -560,7 +609,7 @@ VideoFrame MediaDecoder::nativeFrame(qint64 ordinal) {
                      d->source.info.framePts[d->lastOrdinal + 1] == pts)
                 index = d->lastOrdinal + 1;
             {
-                auto image = retainVideoFrame(f.p,index,frameColorInfo(d->source.info,index));
+                auto image = retainVideoFrame(f.p, index, frameColorInfo(d->source.info, index));
                 d->nearby.insert(index, new VideoFrame(image),
                                  std::max(1, static_cast<int>(image.byteSize() / 1024)));
                 if (index == ordinal) {
@@ -575,7 +624,7 @@ VideoFrame MediaDecoder::nativeFrame(qint64 ordinal) {
     // Receive already queued B-frames before consuming another packet.
     drain();
     while (!found && !d->eof) {
-        checkCancel(d->cancelled);
+        d->checkCancelled();
         int r = av_read_frame(d->video->format, p.p);
         if (r == AVERROR_EOF) {
             d->eof = true;
@@ -614,7 +663,7 @@ QVector<float> MediaDecoder::audio(qint64 startUs, qint64 durationUs) {
         audioEnd = std::max(audioEnd, track.durationUs);
     if (audioEnd > 0 && startUs >= audioEnd)
         return result;
-    checkCancel(d->cancelled);
+    d->checkCancelled();
     d->initAudio();
     if (!d->audioCodec->ctx)
         return result;
@@ -638,7 +687,7 @@ QVector<float> MediaDecoder::audio(qint64 startUs, qint64 durationUs) {
     std::optional<qint64> nextInputSample;
     auto drain = [&]() {
         while (!done) {
-            checkCancel(d->cancelled);
+            d->checkCancelled();
             auto r = avcodec_receive_frame(ctx, f.p);
             if (r == AVERROR(EAGAIN) || r == AVERROR_EOF)
                 break;
@@ -724,14 +773,17 @@ QVector<float> MediaDecoder::audio(qint64 startUs, qint64 durationUs) {
 }
 struct MediaEngine::Impl {
     QCache<QString, VideoFrame> cache;
-    QCache<QString,QImage> overlays{1024};
+    QCache<QString, QImage> overlays{1024};
     int budgetKiB;
     SequenceReader sequences;
     std::map<QString, std::unique_ptr<MediaDecoder>> decoders;
     QStringList usage;
-    CancelCheck cancelled;
-    Impl(int mib, CancelCheck c) : cache(mib * 512),budgetKiB(mib*1024),
-        sequences(qint64(mib)*1024*256,std::min(4,std::max(1,QThread::idealThreadCount()/2))),cancelled(std::move(c)) {}
+    CancelCheck cancelled, operationCancelled;
+    Impl(int mib, CancelCheck c)
+        : cache(mib * 512), budgetKiB(mib * 1024),
+          sequences(qint64(mib) * 1024 * 256,
+                    std::min(4, std::max(1, QThread::idealThreadCount() / 2))),
+          cancelled(std::move(c)) {}
     MediaDecoder &decoder(const MediaSource &s) {
         const auto key = s.id + ':' + s.path + ':' + QString::number(s.selectedAudioTrack);
         usage.removeAll(key);
@@ -740,32 +792,40 @@ struct MediaEngine::Impl {
             while (decoders.size() >= 4) {
                 decoders.erase(usage.takeFirst());
             }
-            auto decoder=std::make_unique<MediaDecoder>(s,cancelled);
-            decoder->setFrameCacheKiB(budgetKiB/16);
-            decoders.emplace(key,std::move(decoder));
+            auto decoder = std::make_unique<MediaDecoder>(s, cancelled);
+            decoder->setFrameCacheKiB(budgetKiB / 16);
+            decoder->setOperationCancelled(
+                [this] { return operationCancelled && operationCancelled(); });
+            decoders.emplace(key, std::move(decoder));
         }
         return *decoders.at(key);
     }
 };
 MediaEngine::MediaEngine(int mib, CancelCheck c) : d(std::make_unique<Impl>(mib, std::move(c))) {}
 MediaEngine::~MediaEngine() = default;
-QImage MediaEngine::frame(const MediaSource &s,qint64 f) {
-    return ColorPipeline::quantize(ColorPipeline::displayRgba(nativeFrame(s,f)),8);
+QImage MediaEngine::frame(const MediaSource &s, qint64 f) {
+    return ColorPipeline::quantize(ColorPipeline::displayRgba(nativeFrame(s, f)), 8);
 }
-VideoFrame MediaEngine::nativeFrame(const MediaSource &s,qint64 f) {
-    checkCancel(d->cancelled);
-    f=std::clamp<qint64>(f,0,std::max<qint64>(0,s.info.frameCount()-1));
-    if(s.kind==SourceKind::Image||s.kind==SourceKind::Sequence)return d->sequences.frame(s,f);
-    auto key=s.id+':'+s.path+':'+QString::number(f);
-    if(auto frame=d->cache.object(key))return *frame;
-    auto frame=d->decoder(s).nativeFrame(f);
-    if(!frame.isNull())d->cache.insert(key,new VideoFrame(frame),std::max(1,int(frame.byteSize()/1024)));
+VideoFrame MediaEngine::nativeFrame(const MediaSource &s, qint64 f) {
+    checkCancelled();
+    f = std::clamp<qint64>(f, 0, std::max<qint64>(0, s.info.frameCount() - 1));
+    if (s.kind == SourceKind::Image || s.kind == SourceKind::Sequence)
+        return d->sequences.frame(s, f);
+    auto key = s.id + ':' + s.path + ':' + QString::number(f);
+    if (auto frame = d->cache.object(key))
+        return *frame;
+    auto frame = d->decoder(s).nativeFrame(f);
+    if (!frame.isNull())
+        d->cache.insert(key, new VideoFrame(frame), std::max(1, int(frame.byteSize() / 1024)));
     return frame;
 }
-void MediaEngine::prefetch(const MediaSource &source,const QVector<qint64> &ordinals) {
-    if(source.kind==SourceKind::Image||source.kind==SourceKind::Sequence)d->sequences.prefetch(source,ordinals);
+void MediaEngine::prefetch(const MediaSource &source, const QVector<qint64> &ordinals) {
+    if (source.kind == SourceKind::Image || source.kind == SourceKind::Sequence)
+        d->sequences.prefetch(source, ordinals);
 }
-QJsonObject MediaEngine::sequenceDiagnostics() const { return d->sequences.diagnostics(); }
+QJsonObject MediaEngine::sequenceDiagnostics() const {
+    return d->sequences.diagnostics();
+}
 QImage MediaEngine::overlayImage(const QString &path) {
     QString error;
     const auto safe = LocalPathPolicy::validateInput(path, &error);
@@ -823,11 +883,19 @@ QVector<float> MediaEngine::timelineAudio(const Project &p, const QString &timel
     }
     return result;
 }
+void MediaEngine::setOperationCancelled(CancelCheck cancelled) {
+    d->operationCancelled = std::move(cancelled);
+}
+void MediaEngine::checkCancelled() const {
+    checkCancel(d->cancelled);
+    checkCancel(d->operationCancelled);
+}
 void MediaEngine::setCacheLimitMiB(int mib) {
-    d->budgetKiB=std::clamp(mib,16,4096)*1024;
-    d->cache.setMaxCost(d->budgetKiB/2);
-    d->sequences.setBudget(qint64(d->budgetKiB)*256);
-    for(auto &[key,decoder]:d->decoders)decoder->setFrameCacheKiB(d->budgetKiB/16);
+    d->budgetKiB = std::clamp(mib, 16, 4096) * 1024;
+    d->cache.setMaxCost(d->budgetKiB / 2);
+    d->sequences.setBudget(qint64(d->budgetKiB) * 256);
+    for (auto &[key, decoder] : d->decoders)
+        decoder->setFrameCacheKiB(d->budgetKiB / 16);
 }
 void MediaEngine::clear() {
     d->cache.clear();

@@ -120,7 +120,7 @@ class ReviewSession final : public QObject {
     void requestFrame(bool scrub = false);
     void tick();
     void startPlayback();
-    void seekInternal(qint64 frame, bool navigation, bool audioScrub);
+    void seekInternal(qint64 frame, bool navigation, bool audioScrub, bool allowProgress = false);
     void refreshLegacyMetadata();
 };
 } // namespace openframe

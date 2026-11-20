@@ -10,6 +10,8 @@ param(
     [switch]$SkipTests
 )
 $ErrorActionPreference = 'Stop'
+# Load hashing/JSON commands before entering nested build helpers.
+Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $BuildDirectory) { $BuildDirectory = Join-Path $projectRoot 'build' }
 # Reuse the locally configured SDKs when launched from Explorer. Explicit
@@ -154,7 +156,7 @@ if ($Package) {
     [pscustomobject]@{
         schemaVersion = 1
         application = 'OpenFrame'
-        version = '0.4.0'
+        version = '0.4.1'
         builtAtUtc = [datetime]::UtcNow.ToString('o')
         configuration = $Configuration
         architecture = 'windows-x64'

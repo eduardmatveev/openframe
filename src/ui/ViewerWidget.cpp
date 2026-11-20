@@ -501,7 +501,9 @@ void ViewerWidget::mouseMoveEvent(QMouseEvent *e) {
                                                                   : m_scrubPixels;
         m_scrubAccum += (e->position().x() - m_lastScrubPosition.x()) / std::max(.1, sensitivity);
         m_lastScrubPosition = e->position();
-        m_session->navigate(m_anchorFrame + qint64(m_scrubAccum), m_audioOnScrub);
+        const auto frame = m_anchorFrame + qint64(m_scrubAccum);
+        if (frame != m_session->currentFrame())
+            m_session->navigate(frame, m_audioOnScrub);
         if (m_endlessScrub) {
             auto bounds = screen()->geometry();
             auto global = e->globalPosition().toPoint();
@@ -582,6 +584,15 @@ void ViewerWidget::mouseReleaseEvent(QMouseEvent *event) {
     if (suppressMouse(event)) {
         event->accept();
         return;
+    }
+    if (m_drag == Drag::Scrub && event->button() == Qt::LeftButton) {
+        const double sensitivity = (event->modifiers() & Qt::ShiftModifier) ? m_shiftScrubPixels
+                                   : (event->modifiers() & Qt::AltModifier) ? m_altScrubPixels
+                                                                            : m_scrubPixels;
+        m_scrubAccum +=
+            (event->position().x() - m_lastScrubPosition.x()) / std::max(.1, sensitivity);
+        m_session->navigate(m_anchorFrame + qint64(m_scrubAccum), false);
+        m_session->seek(m_session->currentFrame(), false);
     }
     if (m_drag == Drag::Laser) {
         m_laserClock.restart();

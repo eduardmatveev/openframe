@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName("OpenFrame");
     QCoreApplication::setApplicationName("OpenFrame");
-    QCoreApplication::setApplicationVersion("0.4.0");
+    QCoreApplication::setApplicationVersion("0.4.1");
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QCommandLineParser parser;
     parser.setApplicationDescription("Independent local animation review player");
